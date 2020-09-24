@@ -1,8 +1,11 @@
-# COLID SearchService
+# Search Service
+The Search Service is part of the Corporate Linked Data Catalog - short: COLID - application.
+[Here](https://colid.pages.gitlab.bayer.com/docs/tech/#/?id=introduction) you can find an introduction to the application.
+A description of all its functions is [here](https://colid.pages.gitlab.bayer.com/docs/tech/#/functional-specification).
 
-The COLID SearchService makes the data findable. It provides indexing and search functionalities based on Elasticsearch.
+The complete guide can be found at the following [link](https://bayer-group.github.io/colid-documentation).
 
-[Link to COLID/DMP Welcome page]
+The Search Service makes the data findable. It provides indexing and search functionalities based on Elasticsearch.
 
 ## Getting Started
 
