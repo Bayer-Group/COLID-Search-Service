@@ -1,0 +1,48 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29102.190
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "COLID.SearchService.WebApi", "COLID.SearchService.WebApi\COLID.SearchService.WebApi.csproj", "{F2CCEDC6-A542-4186-AA97-C7B152E36275}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "COLID.SearchService.Services", "COLID.SearchService.Services\COLID.SearchService.Services.csproj", "{F17DFC1D-879D-4CED-A1B0-68D303C88C17}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "COLID.SearchService.Repositories", "COLID.SearchService.Repositories\COLID.SearchService.Repositories.csproj", "{419C788B-84B1-4F57-8DCB-328F87D32619}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "COLID.SearchService.DataModel", "COLID.SearchService.DataModel\COLID.SearchService.DataModel.csproj", "{2EF9E01D-1587-4973-8086-246BA2C74F98}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "COLID.SearchService.References", "COLID.SearchService.References\COLID.SearchService.References.csproj", "{A8950D53-3C99-4CA6-B40D-C5CCBF541B08}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F2CCEDC6-A542-4186-AA97-C7B152E36275}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F2CCEDC6-A542-4186-AA97-C7B152E36275}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F2CCEDC6-A542-4186-AA97-C7B152E36275}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F2CCEDC6-A542-4186-AA97-C7B152E36275}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F17DFC1D-879D-4CED-A1B0-68D303C88C17}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F17DFC1D-879D-4CED-A1B0-68D303C88C17}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F17DFC1D-879D-4CED-A1B0-68D303C88C17}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F17DFC1D-879D-4CED-A1B0-68D303C88C17}.Release|Any CPU.Build.0 = Release|Any CPU
+		{419C788B-84B1-4F57-8DCB-328F87D32619}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{419C788B-84B1-4F57-8DCB-328F87D32619}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{419C788B-84B1-4F57-8DCB-328F87D32619}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{419C788B-84B1-4F57-8DCB-328F87D32619}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2EF9E01D-1587-4973-8086-246BA2C74F98}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2EF9E01D-1587-4973-8086-246BA2C74F98}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2EF9E01D-1587-4973-8086-246BA2C74F98}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2EF9E01D-1587-4973-8086-246BA2C74F98}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A8950D53-3C99-4CA6-B40D-C5CCBF541B08}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A8950D53-3C99-4CA6-B40D-C5CCBF541B08}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A8950D53-3C99-4CA6-B40D-C5CCBF541B08}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A8950D53-3C99-4CA6-B40D-C5CCBF541B08}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {7928B239-D524-4577-AF63-1BC5A8388F31}
+	EndGlobalSection
+EndGlobal

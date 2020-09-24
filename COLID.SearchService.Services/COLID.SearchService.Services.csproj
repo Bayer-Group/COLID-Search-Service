@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\COLID.SearchService.DataModel\COLID.SearchService.DataModel.csproj" />
+    <ProjectReference Include="..\COLID.SearchService.References\COLID.SearchService.References.csproj" />
+    <ProjectReference Include="..\COLID.SearchService.Repositories\COLID.SearchService.Repositories.csproj" />
+  </ItemGroup>
+
+</Project>
