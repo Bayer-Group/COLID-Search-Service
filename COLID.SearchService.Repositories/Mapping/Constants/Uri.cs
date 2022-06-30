@@ -19,6 +19,11 @@
         public const string PermanentIdentifer = @"http://pid.bayer.com/kos/19014/PermanentIdentifier";
         public const string LastChangeDatetime = @"https://pid.bayer.com/kos/19050/lastChangeDateTime";
 
+        // Topbraid related
+
+        public const string EditWidget = @"http://topbraid.org/tosh#editWidget";
+        public const string ObjectEditor = @"http://topbraid.org/swa#NestedObjectEditor";
+
         // Rdf related
 
         public const string RdfSyntaxType = @"http://www.w3.org/1999/02/22-rdf-syntax-ns#type";

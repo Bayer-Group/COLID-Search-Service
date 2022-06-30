@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace COLID.SearchService.WebApi
@@ -19,11 +18,10 @@ namespace COLID.SearchService.WebApi
         /// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         /// </summary>
         /// <param name="app">The application builder</param>
-        /// <param name="env">The environment</param>
-        public void ConfigureLocal(IApplicationBuilder app, IWebHostEnvironment env)
+        public void ConfigureLocal(IApplicationBuilder app)
         {
             app.UseDeveloperExceptionPage();
-            Configure(app, env);
+            Configure(app);
         }
     }
 }

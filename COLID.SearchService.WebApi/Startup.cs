@@ -1,12 +1,17 @@
-﻿using COLID.Exception;
+﻿using System.IO.Compression;
+using COLID.Common.Logger;
+using COLID.Exception;
 using COLID.Identity;
 using COLID.MessageQueue;
 using COLID.SearchService.Repositories;
 using COLID.SearchService.Services;
 using COLID.StatisticsLog;
 using COLID.Swagger;
+using CorrelationId;
+using CorrelationId.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -37,6 +42,16 @@ namespace COLID.SearchService.WebApi
         /// <param name="services">The <see cref="IServiceCollection"/> object.</param>
         public void ConfigureServices(IServiceCollection services)
         {
+            services.Configure<BrotliCompressionProviderOptions>(o => { o.Level = CompressionLevel.Fastest; });
+
+            services.AddResponseCompression(options =>
+            {
+                options.Providers.Add<BrotliCompressionProvider>();
+            });
+
+
+            services.AddDefaultCorrelationId();
+            services.AddCorrelationIdLogger();
             services.AddCors();
             services.AddControllers().AddNewtonsoftJson();
             services.AddHttpContextAccessor();
@@ -56,9 +71,10 @@ namespace COLID.SearchService.WebApi
         /// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         /// </summary>
         /// <param name="app">The <see cref="IApplicationBuilder"/> object.</param>
-        /// <param name="env">The <see cref="IHostingEnvironment"/> object.</param>
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(IApplicationBuilder app)
         {
+            app.UseResponseCompression();
+            app.UseCorrelationId();
             app.UseExceptionMiddleware();
             app.UseHttpsRedirection();
 

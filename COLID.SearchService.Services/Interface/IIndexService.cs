@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using COLID.SearchService.DataModel.Search;
 using Newtonsoft.Json.Linq;
 
 namespace COLID.SearchService.Services.Interface

@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using COLID.Graph.Metadata.DataModels.Metadata;
 using COLID.SearchService.DataModel.DTO;
 using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Repositories.DataModel;
+using Nest;
 using Newtonsoft.Json.Linq;
 
 namespace COLID.SearchService.Repositories.Interface
@@ -31,6 +33,22 @@ namespace COLID.SearchService.Repositories.Interface
         /// <param name="searchIndex">The index from which the document should be fetched</param>
         /// <returns>Return a document with the given id</returns>
         object GetDocument(string identifier, UpdateIndex searchIndex);
+
+        /// <summary>
+        /// Return a document with the given id
+        /// </summary>
+        /// <param name="identifier">The identifier for which a document is searched for</param>
+        /// <param name="searchIndex">The index from which the document should be fetched</param>
+        /// <returns>Return a document with the given id</returns>
+        IList<JObject> GetSchemaUIResource(IEnumerable<string> identifier, UpdateIndex searchIndex);
+
+        /// <summary>
+        /// Return specified fields to a list of identifiers based on the given index to consider.
+        /// </summary>
+        /// <param name="identifiers">the identifiers to return</param>
+        /// <param name="fieldsToReturn">the fields to return</param>
+        /// <returns></returns>
+        IDictionary<string, IEnumerable<JObject>> GetDocuments(IEnumerable<string> identifiers, IEnumerable<string> fieldsToReturn);
 
         /// <summary>
         /// Deletes a single document with given ID from the index.
@@ -78,13 +96,13 @@ namespace COLID.SearchService.Repositories.Interface
         /// <summary>
         /// Executes a search on the current index with the given query with the DMP default search logic.
         /// </summary>
-        /// <param name="searchRequest">A search request in accordance to the DTO <see cref="COLID.SearchService.DataModel.Search.SearchRequestDto"/> for handling of search requests. </param>        
+        /// <param name="searchRequest">A search request in accordance to the DTO <see cref="COLID.SearchService.DataModel.Search.SearchRequestDto"/> for handling of search requests. </param>
         /// <returns>Enrichend DMP Elasticsearch response.</returns>
         /// <remarks>
         /// The search request DTO simplifies the usage of the DMP search. The DTO will be transformed by following the DMP search logic
         /// into an Elasticsearch JSON DSL.
         /// </remarks>
-        SearchResultDTO Search(SearchRequestDto searchRequest);
+        SearchResultDTO Search(SearchRequestDto searchRequest, bool delay = false);
 
         /// <summary>
         /// Adds new document with metadata to the metadata index and overrides the old metadata.
@@ -97,7 +115,7 @@ namespace COLID.SearchService.Repositories.Interface
         /// Provides actual metadata for all fields of a document in elasticsearch.
         /// </summary>
         /// <returns>Metadata collection for all fields in elasticsearch.</returns>
-        object GetMetadataCollection();
+        MetadataCollection GetMetadataCollection();
 
         object GetResourceTypes();
 
@@ -137,10 +155,27 @@ namespace COLID.SearchService.Repositories.Interface
         void UpdateDocumentSearchAlias(IList<Action> rollbackActions, UpdateIndex updateIndex, SearchIndex searchIndex);
 
         /// <summary>
-        /// Celetes an index 
+        /// Deletes an index 
         /// </summary>
         /// <param name="index">Index to be deleted</param>
         /// <returns>True if the index was deleted, otherwise false</returns>
         bool DeleteIndex(string index);
+
+        /// <summary>
+        /// Checks if the given Index is Empty
+        /// </summary>
+        /// <returns>True if the index is empty, otherwise false</returns>
+        /// <param name="index">Index to be searched</param>
+        bool IsIndexEmpty(string index);
+
+        /// <summary>
+        /// Checks if the given userIds are part of the given index
+        /// and returns the list of present user IDs 
+        /// </summary>
+        /// <param name="sourceIndex">Source Index where users are to be written to</param>
+        /// <param name="uniqueUserIndexName">List of Unique Users</param>
+        /// <param name="dateTime">Date from which users need to be written</param>
+        /// <param name="isDeltaLoad">Delta Load value for first or periodic insert</param>
+        void CountAndWriteUniqueUsers(string sourceIndex, string uniqueUserIndexName, DateTime dateTime, bool isDeltaLoad);
     }
 }

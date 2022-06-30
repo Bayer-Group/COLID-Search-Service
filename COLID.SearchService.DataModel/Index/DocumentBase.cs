@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using COLID.SearchService.DataModel.Search;
-using Microsoft.Identity.Client;
+﻿using COLID.SearchService.DataModel.Search;
 
 namespace COLID.SearchService.DataModel.Index
 {

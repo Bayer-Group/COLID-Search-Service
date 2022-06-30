@@ -6,11 +6,11 @@ using COLID.SearchService.Repositories.Mapping.Extensions;
 using COLID.SearchService.Repositories.Mapping.Options;
 using Nest;
 
-namespace COLID.SearchService.Repositories.Mapping.Rules.HasPid
+namespace COLID.SearchService.Repositories.Mapping.Rules.NestedObject
 {
-    internal sealed class Distribution : HasPidRule
+    internal sealed class ObjectEditor : NestedObjectRule
     {
-        protected override string Value => Uris.Distribution;
+        protected override string Value => Uris.ObjectEditor;
 
         protected override ObjectTypeDescriptor<dynamic, dynamic> Mapping<T>(ObjectTypeDescriptor<dynamic, dynamic> o)
         {
@@ -66,6 +66,5 @@ namespace COLID.SearchService.Repositories.Mapping.Rules.HasPid
             }
             return nestedProperties;
         }
-
     }
 }

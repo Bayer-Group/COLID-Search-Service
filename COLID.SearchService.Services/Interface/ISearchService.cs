@@ -40,7 +40,6 @@ namespace COLID.SearchService.Services.Interface
         /// The search request DTO simplifies the usage of the Data Marketplace search. The DTO will be transformed by following the Data Marketplace search logic
         /// into an Elasticsearch JSON DSL.
         /// </remarks>
-        object Search(SearchRequestDto searchRequest);
-
+        object Search(SearchRequestDto searchRequest, bool delay = false);
     }
 }

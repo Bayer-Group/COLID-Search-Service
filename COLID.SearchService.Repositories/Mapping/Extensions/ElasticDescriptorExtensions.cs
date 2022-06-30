@@ -12,6 +12,7 @@ namespace COLID.SearchService.Repositories.Mapping.Extensions
         {
             return ps
                 .AddResourceId()
+                .AddResourceLinkedLifecycleStatusId()
                 .AutocompleteFilter()
                 .AutocompleteTerms()
                 .DymTrigram()
@@ -79,12 +80,12 @@ namespace COLID.SearchService.Repositories.Mapping.Extensions
         public static PropertiesDescriptor<dynamic> AddNestedFields(this PropertiesDescriptor<dynamic> np,
            IEnumerable<string> properties)
         {
-            foreach (var property in properties) {
+            foreach (var property in properties)
+            {
                 np.AddNestedFields(property);
             }
-            return np;                
+            return np;
         }
-
 
         public static PropertiesDescriptor<dynamic> DymTrigram(this PropertiesDescriptor<dynamic> ps)
         {
@@ -120,6 +121,22 @@ namespace COLID.SearchService.Repositories.Mapping.Extensions
             return ps
                 .Object<dynamic>(ob => ob
                     .Name(Strings.ResourceId)
+                    .Properties(ps1 => ps1
+                        .Object<dynamic>(ob1 => ob1
+                            .Outbound()
+                            .Properties(pd => pd
+                                .UriKeyword()
+                            )
+                        )
+                    )
+                );
+        }
+
+        public static PropertiesDescriptor<dynamic> AddResourceLinkedLifecycleStatusId(this PropertiesDescriptor<dynamic> ps)
+        {
+            return ps
+                .Object<dynamic>(ob => ob
+                    .Name(Strings.ResourceLinkedLifecycleStatus)
                     .Properties(ps1 => ps1
                         .Object<dynamic>(ob1 => ob1
                             .Outbound()

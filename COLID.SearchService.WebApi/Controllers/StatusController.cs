@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using COLID.SearchService.Services.Interface;
+﻿using COLID.SearchService.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -34,6 +33,5 @@ namespace COLID.SearchService.WebApi.Controllers
         {
             return Ok(_statusService.GetBuildInformation());
         }
-
     }
 }

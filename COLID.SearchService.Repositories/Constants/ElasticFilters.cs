@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace COLID.SearchService.Repositories.Constants
+﻿namespace COLID.SearchService.Repositories.Constants
 {
     public static class ElasticFilters
     {

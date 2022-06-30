@@ -15,7 +15,10 @@ namespace COLID.SearchService.DataModel.Search
             SearchIndex = SearchIndex.Published;
             EnableAggregation = true;
             EnableSuggest = true;
+            Order = SearchOrder.Desc;
+            OrderField = "_score";
             FieldsToReturn = null;
+            Delay = false;
         }
 
         public string SearchTerm { get; set; }
@@ -28,10 +31,17 @@ namespace COLID.SearchService.DataModel.Search
         public string ApiCallTime { get; set; }
 
         [JsonConverter(typeof(StringEnumConverter))]
-        public SearchIndex SearchIndex { get; set; } 
+        public SearchIndex SearchIndex { get; set; }
 
         public bool EnableAggregation { get; set; }
-        public bool EnableSuggest { get; set; } 
+        public bool EnableSuggest { get; set; }
+
+        public SearchOrder Order { get; set; }
+
+        public string OrderField { get; set; }
+
         public ISet<string> FieldsToReturn { get; set; }
+
+        public bool Delay { get; set; }
     }
 }

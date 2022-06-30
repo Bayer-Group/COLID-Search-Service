@@ -53,6 +53,5 @@ namespace COLID.SearchService.Repositories.Indexing
                 HandleChildNodes(child.Children, dict, childParentList);
             }
         }
-
     }
 }

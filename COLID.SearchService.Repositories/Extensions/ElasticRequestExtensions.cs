@@ -34,14 +34,14 @@ namespace COLID.SearchService.Repositories.Extensions
                     );
         }
 
-        public static AggregationContainerDescriptor<dynamic> AggregationSelector(this AggregationContainerDescriptor<dynamic> agg, IEnumerable<Facet> aggregationFacets, 
+        public static AggregationContainerDescriptor<dynamic> AggregationSelector(this AggregationContainerDescriptor<dynamic> agg, IEnumerable<Facet> aggregationFacets,
             IDictionary<string, QueryContainer> aggregationFilterQueries = null, QueryContainer dateRangeQuery = null)
         {
             foreach (var facet in aggregationFacets)
             {
                 var name = System.Web.HttpUtility.UrlEncode(facet.Name);
                 var aggFilterQuery = GetFilterQueryForAggregationByName(aggregationFilterQueries, facet.Name);
-                
+
                 if (facet.ContainsTaxonomy)
                 {
                     // Facet with taxonomy will use named filters with query match queries for aggragations
@@ -58,7 +58,7 @@ namespace COLID.SearchService.Repositories.Extensions
                 }
                 else
                 {
-                    // Facet without taxonomies will use terms aggregations                    
+                    // Facet without taxonomies will use terms aggregations
                     agg.Filter(name, q => q
                        .Filter(aq => aggFilterQuery && dateRangeQuery)
                        .Aggregations(childAggs => childAggs
@@ -67,7 +67,7 @@ namespace COLID.SearchService.Repositories.Extensions
                     );
                 }
             }
-            
+
             return agg;
         }
 
@@ -92,13 +92,13 @@ namespace COLID.SearchService.Repositories.Extensions
         }
 
         private static NamedFiltersContainerDescriptor<dynamic> AddNamedFiltersforTaxonomy(Facet facet)
-        {   
+        {
             var filterDescriptor = new NamedFiltersContainerDescriptor<dynamic>();
             if (facet.Taxonomy != null)
             {
                 //Get name of unique taxonomy entries
                 var taxonomyList = facet.Taxonomy.Select(x => x.Key).Select(x => x.Name).Distinct().ToList();
-                
+
                 foreach (var taxonomyEntry in taxonomyList)
                 {
                     QueryContainer filterQuery = new MatchQuery
@@ -107,7 +107,7 @@ namespace COLID.SearchService.Repositories.Extensions
                         Query = taxonomyEntry
                     };
                     filterDescriptor.Filter(taxonomyEntry, filterQuery);
-                }                
+                }
             }
             return filterDescriptor;
         }

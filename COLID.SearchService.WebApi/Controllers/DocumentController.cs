@@ -1,11 +1,14 @@
 ﻿using System;
+using System.Collections.Generic;
+using COLID.Exception.Models.Business;
+using COLID.Graph.TripleStore.DataModels.Index;
+using COLID.Identity.Requirements;
+using COLID.SearchService.DataModel.DTO;
 using COLID.SearchService.DataModel.Index;
+using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using COLID.Exception.Models.Business;
-using COLID.Identity.Requirements;
-using COLID.SearchService.DataModel.Search;
 
 namespace COLID.SearchService.WebApi.Controllers
 {
@@ -45,9 +48,9 @@ namespace COLID.SearchService.WebApi.Controllers
         [HttpPost]
         [Route("document")]
         [Authorize(Policy = nameof(SuperadministratorRequirement))]
-        public IActionResult IndexDocument([FromBody] Document document)
+        public IActionResult IndexDocument([FromBody] IndexDocumentDto document)
         {
-            return Ok(_documentService.IndexDocument(document.Id, document.Content, document.Index));
+            return Ok(_documentService.IndexDocument(document.DocumentId, document));
         }
 
         /// <summary>
@@ -58,13 +61,62 @@ namespace COLID.SearchService.WebApi.Controllers
         /// <returns>A elastic search document</returns>
         [HttpGet]
         [Route("document")]
-        public IActionResult GetDocument([FromQuery(Name="id")] string identifier, [FromQuery(Name = "index")] UpdateIndex updateIndex = UpdateIndex.Published)
+        public IActionResult GetDocument([FromQuery(Name = "id")] string identifier, [FromQuery(Name = "index")] UpdateIndex updateIndex = UpdateIndex.Published)
         {
             try
             {
                 return Ok(_documentService.GetDocument(identifier, updateIndex));
             }
-            catch(ArgumentNullException ex)
+            catch (ArgumentNullException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (EntityNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+        }
+
+
+        /// <summary>
+        /// Return the document for a given identifier
+        /// </summary>
+        /// <param name="identifiers">The identifier for which a document is searched for</param>
+        /// <param name="updateIndex">Specifies the index from which the document should be fetched</param>
+        /// <returns>A elastic search document for schemaUi</returns>
+        [HttpPost]
+        [Route("getSchemaUIResource")]
+        public IActionResult GetSchemaUIResource([FromBody] DisplayTableAndColumn identifiers)
+        {
+            try
+            {
+                return Ok(_documentService.GetSchemaUIResource(identifiers, UpdateIndex.Published));
+            }
+            catch (ArgumentNullException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (EntityNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+        }
+
+
+        /// <summary>
+        /// Return hashes for each EntryLifecycleStatus to a given list of identifiers
+        /// </summary>
+        /// <param name="identifiers">a list of identifiers to search for</param>
+        /// <returns>a dictionary containing identifiers and their hashes for each EntryLifecycleStatus. Hash is empty, if none exists or pid uri is not in elastic</returns>
+        [HttpPost]
+        [Route("documents/hash")]
+        public IActionResult GetDocumentsHash([FromBody] IEnumerable<string> identifiers)
+        {
+            try
+            {
+                return Ok(_documentService.GetDocumentsHash(identifiers));
+            }
+            catch (ArgumentNullException ex)
             {
                 return BadRequest(ex.Message);
             }

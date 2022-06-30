@@ -1,4 +1,5 @@
-﻿using COLID.SearchService.DataModel.Search;
+﻿using System.Threading.Tasks;
+using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,10 +16,12 @@ namespace COLID.SearchService.WebApi.Controllers
     public class SearchController : ControllerBase
     {
         private readonly ISearchService _searchService;
+        private readonly IRemoteSimilarityService _similarityService;
 
-        public SearchController(ISearchService searchService)
+        public SearchController(ISearchService searchService, IRemoteSimilarityService similarityService)
         {
             _searchService = searchService;
+            _similarityService = similarityService;
         }
 
         /// <summary>
@@ -47,7 +50,8 @@ namespace COLID.SearchService.WebApi.Controllers
         [Route("")]
         public IActionResult Search([FromBody] SearchRequestDto searchRequest)
         {
-            return Ok(_searchService.Search(searchRequest));
+            var delay = searchRequest.Delay;
+            return Ok(_searchService.Search(searchRequest, delay));
         }
 
         /// <summary>
@@ -72,9 +76,27 @@ namespace COLID.SearchService.WebApi.Controllers
         /// <returns>Status code along with list of suggest text.</returns>
         [HttpGet]
         [Route("suggest")]
-        public IActionResult Suggest([FromQuery(Name = "q")]string searchText, [FromQuery] SearchIndex searchIndex = SearchIndex.Published)
+        public IActionResult Suggest([FromQuery(Name = "q")] string searchText, [FromQuery] SearchIndex searchIndex = SearchIndex.Published)
         {
             return Ok(_searchService.Suggest(searchText, searchIndex));
+        }
+
+        /// <summary>
+        /// Gets the similar resources of a partial PID resource, using the Similarity Service
+        /// </summary>
+        /// <param name="similarityRequest">A search request in accordance to the DTO <see cref="COLID.SearchService.DataModel.Search.SimilarityRequestDto"/> for handling of search requests. </param>
+        /// <param name="threshold">The threshold of the similarity score.</param>
+        /// <param name="limit">Limits the returned resources.</param>
+        /// <param name="model">The model which should be used to calculate the similarity of resources.</param>
+        [HttpPost]
+        [Route("similarity")]
+        public async Task<IActionResult> Similarity([FromBody] SimilarityRequestDto similarityRequest,
+                                                    [FromQuery(Name = "threshold")] double threshold = 0.0,
+                                                    [FromQuery(Name = "limit")] int limit = 10,
+                                                    [FromQuery(Name = "model")] string model = "ft")
+        {
+            var result = await _similarityService.PerformRessourceSimilarity(similarityRequest, threshold, limit, model);
+            return Ok(result);
         }
 
         /// <summary>
@@ -85,7 +107,7 @@ namespace COLID.SearchService.WebApi.Controllers
         /// <returns>Status code along with list of pharse suggestion.</returns>
         [HttpGet]
         [Route("phraseSuggest")]
-        public IActionResult PhraseSuggest([FromQuery(Name = "q")]string searchText, [FromQuery] SearchIndex searchIndex = SearchIndex.Published)
+        public IActionResult PhraseSuggest([FromQuery(Name = "q")] string searchText, [FromQuery] SearchIndex searchIndex = SearchIndex.Published)
         {
             return Ok(_searchService.PhraseSuggest(searchText, searchIndex));
         }

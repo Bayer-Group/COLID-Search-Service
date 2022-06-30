@@ -32,9 +32,9 @@ namespace COLID.SearchService.Repositories.Indexing.Extensions
         public static TokenFiltersDescriptor AddAutoPhraseFilter(this TokenFiltersDescriptor fd, IDictionary<TaxonomyResultDTO, IList<TaxonomyResultDTO>> dictionary, string autoPhraseKey)
         {
             if (string.IsNullOrEmpty(autoPhraseKey))
-            {                
+            {
                 return fd;
-            }           
+            }
 
             return fd.Synonym(autoPhraseKey, s => s.Tokenizer(ElasticTokenizers.Keyword).Synonyms(BuildAutoPhraseList(dictionary)));
         }
@@ -42,9 +42,9 @@ namespace COLID.SearchService.Repositories.Indexing.Extensions
         public static TokenFiltersDescriptor AddVocabularyFilter(this TokenFiltersDescriptor fd, IDictionary<TaxonomyResultDTO, IList<TaxonomyResultDTO>> dictionary, string vocabularyKey)
         {
             if (string.IsNullOrEmpty(vocabularyKey))
-            {                
+            {
                 return fd;
-            }            
+            }
 
             return fd.Synonym(vocabularyKey, s => s.Tokenizer(ElasticTokenizers.Keyword).Synonyms(BuildVocabularyList(dictionary)));
         }
@@ -68,13 +68,14 @@ namespace COLID.SearchService.Repositories.Indexing.Extensions
         {
             return fd.Shingle(ElasticFilters.AutocompleteShingle, sh => sh.MinShingleSize(2).MaxShingleSize(4));
         }
+
         public static TokenFiltersDescriptor AddWordDelimeter(this TokenFiltersDescriptor fd)
         {
             return fd.PatternReplace(ElasticFilters.FilterWordDelimiter, wd => wd.Pattern("_").Replacement(" "));
         }
 
         private static IList<string> BuildAutoPhraseList(IDictionary<TaxonomyResultDTO, IList<TaxonomyResultDTO>> dictionary)
-        {   
+        {
             return dictionary
                 .Where(d => d.Key.Name.Contains(" "))
                 .Select(d => $"{d.Key.Name} => {PrepareNameWithUnderScore(d.Key)}")
@@ -106,7 +107,6 @@ namespace COLID.SearchService.Repositories.Indexing.Extensions
 
             return string.IsNullOrWhiteSpace(synonyms) ? PrepareNameWithUnderScore(taxonomy) : $"{PrepareNameWithUnderScore(taxonomy)}, {synonyms}";
         }
-
 
         private static string PrepareNameWithUnderScore(TaxonomyResultDTO taxonomy)
         {

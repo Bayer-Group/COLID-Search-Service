@@ -1,4 +1,8 @@
-﻿using COLID.SearchService.DataModel.Search;
+﻿using System;
+using System.Collections.Generic;
+using COLID.Graph.TripleStore.DataModels.Index;
+using COLID.SearchService.DataModel.DTO;
+using COLID.SearchService.DataModel.Search;
 using Newtonsoft.Json.Linq;
 
 namespace COLID.SearchService.Services.Interface
@@ -12,11 +16,10 @@ namespace COLID.SearchService.Services.Interface
         /// Adds new document with specific ID to the index.
         /// </summary>
         /// <param name="id">Unique identifer <c>_id</c> of the document.</param>
-        /// <param name="documentToIndex">Contents of the document.</param>
-        /// <param name="updateIndex">The index to which the document should be indexed.</param>
+        /// <param name="document">Document to index.</param>
         /// <returns></returns>
         /// <remarks>Can be used to overwrite an existing document with the usage of an already existing ID.</remarks>
-        object IndexDocument(string id, JObject documentToIndex, UpdateIndex updateIndex);
+        object IndexDocument(Uri id, IndexDocumentDto document);
 
         /// <summary>
         /// Adds new document to the index.
@@ -32,6 +35,21 @@ namespace COLID.SearchService.Services.Interface
         /// <returns>Return a document with the given id</returns>
         object GetDocument(string identifier, UpdateIndex searchIndex);
 
+
+        /// <summary>
+        /// Return a document with the given id
+        /// </summary>
+        /// <param name="identifier">The identifier for which a document is searched for</param>
+        /// <param name="searchIndex">Specifies the index from which the document should be fetched</param>
+        /// <returns>Return a document with the given id</returns>
+        object GetSchemaUIResource(DisplayTableAndColumn identifier, UpdateIndex searchIndex);
+
+        /// <summary>
+        /// Get the hashes for a list of identifiers. If no hash or identifier was found for the given ones, an empty hash value will be returned.
+        /// </summary>
+        /// <param name="identifiers">the ids to search for</param>
+        IDictionary<string, Dictionary<string, string>> GetDocumentsHash(IEnumerable<string> identifiers);
+
         /// <summary>
         /// Adds multiple documents to the index.
         /// </summary>
@@ -44,7 +62,7 @@ namespace COLID.SearchService.Services.Interface
         /// Deletes a single document with given ID from the index.
         /// </summary>
         /// <param name="documentId">Raw document which should be deleted. Resource ID will be extracted.</param>
-        void DeleteDocument(string documentId);
+        void DeleteDocument(Uri id, IndexDocumentDto document);
 
         /// <summary>
         /// Adds new document with metadata to the metadata index and overrides the old metadata.

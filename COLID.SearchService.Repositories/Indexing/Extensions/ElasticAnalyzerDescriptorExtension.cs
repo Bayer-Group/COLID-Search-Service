@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 using COLID.Graph.Metadata.DataModels.Metadata;
 using COLID.Graph.TripleStore.DataModels.Taxonomies;
 using COLID.SearchService.Repositories.Constants;

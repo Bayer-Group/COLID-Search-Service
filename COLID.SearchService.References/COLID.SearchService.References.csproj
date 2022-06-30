@@ -5,21 +5,22 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="COLID.Common" Version="2.0.18" />
-    <PackageReference Include="COLID.Exception" Version="2.0.18" />
-    <PackageReference Include="COLID.Graph" Version="2.0.18" />
-    <PackageReference Include="COLID.Identity" Version="2.0.18" />
-    <PackageReference Include="COLID.MessageQueue" Version="2.0.18" />
-    <PackageReference Include="COLID.StatisticsLog" Version="2.0.18" />
-    <PackageReference Include="COLID.Swagger" Version="2.0.18" />
-    <PackageReference Include="Microsoft.AspNetCore.Authorization" Version="3.1.6" />
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="3.1.6" />
+    <PackageReference Include="COLID.Common" Version="2.0.116" />
+    <PackageReference Include="COLID.Exception" Version="2.0.112" />
+    <PackageReference Include="COLID.Graph" Version="2.0.105" />
+    <PackageReference Include="COLID.Identity" Version="2.0.106" />
+    <PackageReference Include="COLID.MessageQueue" Version="2.0.364" />
+    <PackageReference Include="COLID.StatisticsLog" Version="2.0.1" />
+    <PackageReference Include="COLID.Swagger" Version="2.0.101" />
+    <PackageReference Include="Microsoft.AspNetCore.Authorization" Version="3.1.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="3.1.9" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="3.1.9" />
     <PackageReference Include="NEST" Version="7.8.1" />
     <PackageReference Include="NEST.JsonNetSerializer" Version="7.8.1" />
-    <PackageReference Include="Elasticsearch.Net.Aws" Version="7.0.4" />
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
-    <PackageReference Include="RabbitMQ.Client" Version="6.1.0" />
-    <PackageReference Include="AutoMapper" Version="10.0.0" />
+    <PackageReference Include="Elasticsearch.Net.Aws" Version="7.0.5" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="RabbitMQ.Client" Version="6.2.2" />
+    <PackageReference Include="AutoMapper" Version="10.1.1" />
   </ItemGroup>
 
 </Project>

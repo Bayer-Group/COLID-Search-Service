@@ -1,6 +1,6 @@
-﻿using COLID.SearchService.Services.Implementation;
+﻿using COLID.MessageQueue.Services;
+using COLID.SearchService.Services.Implementation;
 using COLID.SearchService.Services.Interface;
-using COLID.MessageQueue.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,6 +17,8 @@ namespace COLID.SearchService.Services
         {
             services.AddTransient<IStatusService, StatusService>();
 
+            services.AddTransient<IRemoteSimilarityService, RemoteSimilarityService>();
+
             services.AddSingleton<Implementation.SearchService>();
             services.AddSingleton<ISearchService>(x => x.GetRequiredService<Implementation.SearchService>());
 
@@ -24,7 +26,12 @@ namespace COLID.SearchService.Services
             services.AddSingleton<IDocumentService>(x => x.GetRequiredService<DocumentService>());
             services.AddSingleton<IMessageQueueReceiver>(x => x.GetRequiredService<DocumentService>());
 
-            services.AddTransient<IIndexService, IndexService>();
+            services.AddTransient<IndexService>();
+            services.AddTransient<IIndexService>(x => x.GetRequiredService<IndexService>());
+            services.AddTransient<IMessageQueueReceiver> (x => x.GetRequiredService<IndexService>());
+
+            services.AddTransient<IUserService, UserService>();
+
             return services;
         }
     }

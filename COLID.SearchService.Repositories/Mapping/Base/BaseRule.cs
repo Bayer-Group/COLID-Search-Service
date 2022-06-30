@@ -1,10 +1,9 @@
-﻿using COLID.SearchService.Repositories.Constants;
+﻿using COLID.Graph.Metadata.DataModels.Metadata;
 using COLID.SearchService.Repositories.Mapping.Constants;
 using COLID.SearchService.Repositories.Mapping.Extensions;
 using COLID.SearchService.Repositories.Mapping.Options;
 using Nest;
 using Newtonsoft.Json.Linq;
-using COLID.Graph.Metadata.DataModels.Metadata;
 
 namespace COLID.SearchService.Repositories.Mapping.Base
 {

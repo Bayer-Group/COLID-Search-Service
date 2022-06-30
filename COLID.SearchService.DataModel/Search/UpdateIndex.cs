@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.Serialization;
-using System.Text;
+﻿using System.Runtime.Serialization;
 
 namespace COLID.SearchService.DataModel.Search
 {
@@ -9,6 +6,7 @@ namespace COLID.SearchService.DataModel.Search
     {
         [EnumMember(Value = "draft")]
         Draft,
+
         [EnumMember(Value = "published")]
         Published,
     }

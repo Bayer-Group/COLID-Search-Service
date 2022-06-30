@@ -32,6 +32,7 @@ namespace COLID.SearchService.Repositories.Mapping.Extensions
                             .Properties(op =>
                                 {
                                     op.AddResourceId();
+                                    op.AddResourceLinkedLifecycleStatusId();
                                     op.AddObject<LinkedTypesOptions>(metadataObject);
                                     return op;
                                 }

@@ -1,13 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
-using System.Threading.Tasks;
-using COLID.SearchService.DataModel.Status;
+﻿using COLID.SearchService.DataModel.Status;
 using COLID.SearchService.Services.Interface;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 
 namespace COLID.SearchService.Services.Implementation
 {

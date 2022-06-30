@@ -1,11 +1,8 @@
 ﻿using System.Collections.Generic;
 using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Repositories.Interface;
-using COLID.SearchService.Repositories.Mapping.Constants;
 using COLID.SearchService.Services.Interface;
-using COLID.MessageQueue.Constants;
 using Newtonsoft.Json.Linq;
-using System;
 
 namespace COLID.SearchService.Services.Implementation
 {
@@ -33,10 +30,10 @@ namespace COLID.SearchService.Services.Implementation
         /// <summary>
         /// <see cref="ISearchService.Search(SearchRequestDto)"/>
         /// </summary>
-        public object Search(SearchRequestDto searchRequest)
+        public object Search(SearchRequestDto searchRequest, bool delay)
         {
-            return _elasticSearchRepository.Search(searchRequest);
-        }        
+            return _elasticSearchRepository.Search(searchRequest, delay);
+        }
 
         /// <summary>
         /// <see cref="ISearchService.SearchLowLevel(JObject)"/>

@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using COLID.SearchService.Repositories.Constants;
+﻿using COLID.SearchService.Repositories.Constants;
 using Nest;
 
 namespace COLID.SearchService.Repositories.Indexing.Extensions
