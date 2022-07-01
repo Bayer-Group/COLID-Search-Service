@@ -39,42 +39,43 @@ namespace COLID.SearchService.Services.Implementation
 
         public async void ReindexingSwitch(string pidUriString)
         {
-            var document = (JObject)JsonConvert.DeserializeObject(pidUriString);
-            var lastPidUris = document["lastPidUris"];
-            bool continueCheck = true;
-            DateTime loopStart = DateTime.Now;
-            _logger.LogInformation($"Checking if the piduris have been received in new index at {loopStart} hours", loopStart);
-            int myCount = 0;
-            while (continueCheck && DateTime.Now.Subtract(loopStart).Hours < 4)
-            {
-                myCount++;
-                _logger.LogInformation($"The loop is running for {myCount} time", myCount);
-                lastPidUris.ToList().ForEach(pidUri =>
-                {
-                    try
-                    {
-                        var response = _elasticSearchRepository.GetDocument(HttpUtility.UrlEncode(pidUri.ToString()), UpdateIndex.Published);
-                        if (response != null && continueCheck)
-                        {
-                            _logger.LogInformation($"Document present {pidUri} in new index", pidUri);
+            //var document = (JObject)JsonConvert.DeserializeObject(pidUriString);
+            //var lastPidUris = document["lastPidUris"];
+            //bool continueCheck = true;
+            //DateTime loopStart = DateTime.Now;
+            //_logger.LogInformation($"Checking if the piduris have been received in new index at {loopStart} hours", loopStart);
+            //int myCount = 0;
+            //while (continueCheck && DateTime.Now.Subtract(loopStart).Hours < 4)
+            //{
+            //    myCount++;
+            //    _logger.LogInformation($"The loop is running for {myCount} time", myCount);
+            //    lastPidUris.ToList().ForEach(pidUri =>
+            //    {
+            //        try
+            //        {
+            //            var response = _elasticSearchRepository.GetDocument(HttpUtility.UrlEncode(pidUri.ToString()), UpdateIndex.Published);
+            //            if (response != null && continueCheck)
+            //            {
+            //                _logger.LogInformation($"Document present {pidUri} in new index", pidUri);
 
-                            continueCheck = false;
-                        }
-                    }
-                    catch (System.Exception ex)
-                    {
-                        if (ex is EntityNotFoundException)
-                        {
-                            _logger.LogWarning(ex, $"Document not recieved yet in new index for {pidUri} by message queue", pidUri.ToString());
-                        }
-                    }
-                });
+            //                continueCheck = false;
+            //            }
+            //        }
+            //        catch (System.Exception ex)
+            //        {
+            //            if (ex is EntityNotFoundException)
+            //            {
+            //                _logger.LogWarning(ex, $"Document not recieved yet in new index for {pidUri} by message queue", pidUri.ToString());
+            //            }
+            //        }
+            //    });
 
-                await Task.Delay(600000);
+            //    await Task.Delay(600000);
 
-            }
-            _logger.LogInformation($"Loop finished. Switching Search Aliases at {DateTime.Now} hours");
-            SwitchAndDeleteOldIndex();
+            //}
+            _logger.LogInformation("This method is commented for Open Source Version");
+            //_logger.LogInformation($"Loop finished. Switching Search Aliases at {DateTime.Now} hours");
+            //SwitchAndDeleteOldIndex();
         }
 
         private void SwitchAndDeleteOldIndex()
@@ -146,17 +147,17 @@ namespace COLID.SearchService.Services.Implementation
                     _elasticSearchRepository.IndexMetadata(JObject.FromObject(metadataObject));
                 }
                 _elasticSearchRepository.UpdateMetadataSearchAlias(rollbackActions);
-                //_elasticSearchRepository.UpdateDocumentSearchAlias(rollbackActions, UpdateIndex.Draft, SearchIndex.Draft);
-                //_elasticSearchRepository.UpdateDocumentSearchAlias(rollbackActions, UpdateIndex.Published, SearchIndex.Published);
+                _elasticSearchRepository.UpdateDocumentSearchAlias(rollbackActions, UpdateIndex.Draft, SearchIndex.Draft);
+                _elasticSearchRepository.UpdateDocumentSearchAlias(rollbackActions, UpdateIndex.Published, SearchIndex.Published);
 
                 /// At this point the actual indexing process is completed.
                 /// The following processes are there to clean up the elastic.
                 /// It is ignored whether the deletion was successful or not.
-                //var oldIndices = oldDraftDocumentIndices.Concat(oldPublishedDocumentIndices).Concat(oldMetadataIndices);
-                //foreach (var oldIndex in oldIndices)
-                //{
-                //    _elasticSearchRepository.DeleteIndex(oldIndex);
-                //}
+                var oldIndices = oldDraftDocumentIndices.Concat(oldPublishedDocumentIndices).Concat(oldMetadataIndices);
+                foreach (var oldIndex in oldIndices)
+                {
+                    _elasticSearchRepository.DeleteIndex(oldIndex);
+                }
             }
             catch (System.Exception ex)
             {
