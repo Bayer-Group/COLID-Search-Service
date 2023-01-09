@@ -78,5 +78,11 @@ namespace COLID.SearchService.Services.Interface
         object GetMetadata();
 
         object GetResourceTypes();
+
+        /// <summary>
+        /// Document with field resoruceIDs
+        /// </summary>
+        /// <param name="identifiers">the ids to search for</param>
+        public IDictionary<string, IEnumerable<JObject>> GetDocumentsByIds(IEnumerable<string> identifiers, bool includeDraft = false);
     }
 }

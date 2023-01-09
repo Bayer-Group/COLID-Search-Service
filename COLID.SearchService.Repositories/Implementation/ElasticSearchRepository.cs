@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -152,7 +152,7 @@ namespace COLID.SearchService.Repositories.Implementation
             // TODO: Search alias, update alias?
             var updateAlias = GetUpdateAlias(updateIndex);
             var response = _elasticClient.Get<dynamic>(identifier, doc => doc.Index(updateAlias));
-            
+
             if (!response.Found)
             {
                 var errorMessage = $"No document was found for the given identifier {identifier}";
@@ -213,38 +213,61 @@ namespace COLID.SearchService.Repositories.Implementation
             return searchresult;
         }
 
-        public IDictionary<string, IEnumerable<JObject>> GetDocuments(IEnumerable<string> identifiers, IEnumerable<string> fieldsToReturn)
+        public IDictionary<string, IEnumerable<JObject>> GetDocuments(IEnumerable<string> identifiers, IEnumerable<string> fieldsToReturn, bool includeDraft = false)
         {
-            var searchAlias_Draft = GetSearchAlias(SearchIndex.Draft);
-            var searchAlias_Public = GetSearchAlias(SearchIndex.Published);
-
-            var response = _elasticClient.MultiGet(m => m
-                    .GetMany<object>(identifiers, (op, id) => op
-                        .Index(searchAlias_Draft)
-                        .Source(s => s
-                            .Includes(x => x
-                                .Fields(fieldsToReturn.ToArray()
-                                ))
-                            ))
-                    .GetMany<object>(identifiers, (op, id) => op
-                        .Index(searchAlias_Public)
-                        .Source(s => s
-                            .Includes(x => x
-                                .Fields(fieldsToReturn.ToArray()
-                                )))));
-            if (!response.IsValid)
+            IDictionary<string, IEnumerable<JObject>> resultDict = new Dictionary<string, IEnumerable<JObject>>();
+            try
             {
-                var errorMessage = "No valid result was found for the given identifiers";
-                _logger.LogDebug(errorMessage);
-                throw new EntityNotFoundException(errorMessage);
+                var searchAlias_Draft = GetSearchAlias(SearchIndex.Draft);
+                var searchAlias_Public = GetSearchAlias(SearchIndex.Published);
+                MultiGetResponse response;
+
+                if (includeDraft)
+                {
+                    response = _elasticClient.MultiGet(m => m
+                        .GetMany<object>(identifiers, (op, id) => op
+                            .Index(searchAlias_Draft)
+                            .Source(s => s
+                                .Includes(x => x
+                                    .Fields(fieldsToReturn.ToArray()
+                                    ))
+                                ))
+                        .GetMany<object>(identifiers, (op, id) => op
+                            .Index(searchAlias_Public)
+                            .Source(s => s
+                                .Includes(x => x
+                                    .Fields(fieldsToReturn.ToArray()
+                                    )))));
+                }
+                else
+                {
+                    response = _elasticClient.MultiGet(m => m
+                        .GetMany<object>(identifiers, (op, id) => op
+                            .Index(searchAlias_Public)
+                            .Source(s => s
+                                .Includes(x => x
+                                    .Fields(fieldsToReturn.ToArray()
+                                    )))));
+                }
+
+                if (!response.IsValid)
+                {
+                    var errorMessage = "No valid result was found for the given identifiers";
+                    _logger.LogDebug(errorMessage);
+                    throw new EntityNotFoundException(errorMessage);
+                }
+
+                var groupedHits = response.Hits.GroupBy(h => h.Id);
+
+                resultDict = groupedHits.ToDictionary(
+                    gh => gh.Key,
+                    gh => gh.Select(doc => doc.Source == null ? null : JObject.Parse(doc.Source.ToString()!)));
             }
-
-            var groupedHits = response.Hits.GroupBy(h => h.Id);
-
-            var resultDict = groupedHits.ToDictionary(
-                gh => gh.Key,
-                gh => gh.Select(doc => doc.Source == null ? null : JObject.Parse(doc.Source.ToString()!)));
-
+            catch (ElasticsearchClientException ex)
+            {
+                _logger.LogError("Exception while trying to get Elasticsearch error reason: " + ex.ToString() + "DebugInformation : " + ex.DebugInformation);
+                return resultDict;
+            }
             return resultDict;
         }
 
@@ -500,7 +523,7 @@ namespace COLID.SearchService.Repositories.Implementation
         /// <returns>Returns propertiens for key as dicitionary.</returns>
         private IDictionary<string, dynamic> GetMetadataPropertiesByKey(string key, MetadataCollection metadataCollection = null)
         {
-            
+
             IDictionary<string, dynamic> properties = new Dictionary<string, dynamic>();
 
             //Check which level of metadata
@@ -712,7 +735,7 @@ namespace COLID.SearchService.Repositories.Implementation
             WriteLogsAfterSearch(esSearchRequest, searchRequest);
 #if DEBUG
             _messages.Insert(0, $"Api call made from client at {searchRequest.ApiCallTime} ");
-            _messages.Insert(1, $"Api call received by server at { receivedTime} ");
+            _messages.Insert(1, $"Api call received by server at {receivedTime} ");
             _messages.Add($"Respsone send from server at {GetCurrentTimeStamp()}");
             result.Messages = _messages;
 #endif
@@ -810,6 +833,21 @@ namespace COLID.SearchService.Repositories.Implementation
             }
         }
 
+        public void WriteSavedSearchFavoritesListSubscriptionsToLogs(Dictionary<string, int> requestData, string type, string statiticsName)
+        {
+            // Write top search results to logs
+            foreach (var data in requestData)
+            {
+                var additionalInfo = new Dictionary<string, object>();
+
+                // Add additional info to logging
+                additionalInfo.Add("userId", data.Key);
+                additionalInfo.Add(type, data.Value);
+                // Write to logs
+                _statiticsLogService.Info(statiticsName, additionalInfo);
+            }
+        }
+
         #endregion Write logs
 
         /// <summary>
@@ -823,7 +861,7 @@ namespace COLID.SearchService.Repositories.Implementation
             // Brackets are used in business context and has to be escaped, because in elastic they are used to query ranges.
             newSearchTerm = searchTerm.Replace("[", @"\[");
             newSearchTerm = newSearchTerm.Replace("]", @"\]");
-            newSearchTerm = string.IsNullOrEmpty(searchTerm) ? newSearchTerm : (newSearchTerm.Contains("/") ? Regex.Replace(newSearchTerm, @"\/?$", @"\/"): newSearchTerm);
+            newSearchTerm = string.IsNullOrEmpty(searchTerm) ? newSearchTerm : (newSearchTerm.Contains("/") ? Regex.Replace(newSearchTerm, @"\/?$", @"\/") : newSearchTerm);
 
             return newSearchTerm;
         }
@@ -1250,7 +1288,7 @@ namespace COLID.SearchService.Repositories.Implementation
 .NumberOfReplicas(0)
 .NumberOfShards(1)
 .Setting(UpdatableIndexSettings.MaxNGramDiff, 13)
-.Setting("index.mapping.total_fields.limit", 2000)
+.Setting("index.mapping.total_fields.limit", 3000)
 .Analysis(a => a
 .TokenFilters(tf => tf
 .AddEnglishStopwordsFilter()
@@ -1507,7 +1545,7 @@ namespace COLID.SearchService.Repositories.Implementation
                         {
                             foreach (var hit in hits)
                             {
-                                uniqueUsers.Add(new UserBucketDTO { Key = user.Key, DocCount = user.DocCount, FirstVisitHit = hit.Source});
+                                uniqueUsers.Add(new UserBucketDTO { Key = user.Key, DocCount = user.DocCount, FirstVisitHit = hit.Source });
                             }
                         }
                     }
@@ -1527,12 +1565,12 @@ namespace COLID.SearchService.Repositories.Implementation
         {
             try
             {
-            var response = _elasticClient.Search<dynamic>(s => s
-                   .Index(index)
-                   .MatchAll()
-                   .Size(0)
-                );
-            return !(response.Total > 0);
+                var response = _elasticClient.Search<dynamic>(s => s
+                       .Index(index)
+                       .MatchAll()
+                       .Size(0)
+                    );
+                return !(response.Total > 0);
             }
             catch (System.Exception ex)
             {
@@ -1541,7 +1579,7 @@ namespace COLID.SearchService.Repositories.Implementation
             }
         }
 
-       public List<string> GetUserIDsInIndex(string index, List<string> userIds)
+        public List<string> GetUserIDsInIndex(string index, List<string> userIds)
         {
             try
             {
@@ -1557,7 +1595,7 @@ namespace COLID.SearchService.Repositories.Implementation
                         )
                     );
                 var userHits = new List<string>();
-                if (response!= null)
+                if (response != null)
                 {
                     foreach (var hit in response.Hits)
                     {

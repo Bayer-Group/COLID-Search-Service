@@ -54,7 +54,7 @@ namespace COLID.SearchService.Services.Implementation
             DateTime loopStart = DateTime.Now;
             _logger.LogInformation($"Checking if the piduris have been received in new index at {loopStart} hours", loopStart);
             int myCount = 0;
-            while (continueCheck && DateTime.Now.Subtract(loopStart).Hours < 4)
+            while (continueCheck && DateTime.Now.Subtract(loopStart).Hours < 8)
             {
                 myCount++;
                 _logger.LogInformation($"The loop is running for {myCount} time", myCount);
