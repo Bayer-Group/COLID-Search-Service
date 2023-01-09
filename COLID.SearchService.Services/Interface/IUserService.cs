@@ -17,5 +17,8 @@ namespace COLID.SearchService.Services.Interface
         /// </summary>
         /// <param name="appName">PID or DMP App Name</param>
         void WritePIDDMPUniqueUsers(string appName);
+        void WriteDmpAllSavedSearchFiltersCountToLogs(Dictionary<string, int> allSavedSearchFilters);
+        void WriteFavoritesListCountToLogs(Dictionary<string, int> allFavoritesList);
+        void WriteAllSubscriptionsCountToLogs(Dictionary<string, int> allSubscriptions);
     }
 }

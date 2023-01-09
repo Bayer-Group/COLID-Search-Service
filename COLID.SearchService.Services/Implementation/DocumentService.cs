@@ -300,5 +300,25 @@ namespace COLID.SearchService.Services.Implementation
         {
             return _elasticSearchRepository.IndexMetadata(metadata);
         }
+
+        /// <summary>
+        /// Document with field resoruceIDs
+        /// </summary>
+        /// <param name="identifiers">the ids to search for</param>
+        public IDictionary<string, IEnumerable<JObject>> GetDocumentsByIds(IEnumerable<string> identifiers, bool includeDraft = false)
+        {
+            if (identifiers.IsNullOrEmpty())
+            {
+                throw new ArgumentNullException(nameof(identifiers), "The identifiers must not be null or empty.");
+            }
+
+            var documentIdentifiers = identifiers.Distinct()
+                .Select(HttpUtility.UrlEncode)
+                .AsEnumerable();
+
+            var fieldsToReturn = new HashSet<string> ();
+
+            return _elasticSearchRepository.GetDocuments(documentIdentifiers, fieldsToReturn, includeDraft);
+        }
     }
 }

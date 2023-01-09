@@ -48,7 +48,7 @@ namespace COLID.SearchService.Repositories.Interface
         /// <param name="identifiers">the identifiers to return</param>
         /// <param name="fieldsToReturn">the fields to return</param>
         /// <returns></returns>
-        IDictionary<string, IEnumerable<JObject>> GetDocuments(IEnumerable<string> identifiers, IEnumerable<string> fieldsToReturn);
+        IDictionary<string, IEnumerable<JObject>> GetDocuments(IEnumerable<string> identifiers, IEnumerable<string> fieldsToReturn, bool includeDraft = false);
 
         /// <summary>
         /// Deletes a single document with given ID from the index.
@@ -177,5 +177,14 @@ namespace COLID.SearchService.Repositories.Interface
         /// <param name="dateTime">Date from which users need to be written</param>
         /// <param name="isDeltaLoad">Delta Load value for first or periodic insert</param>
         void CountAndWriteUniqueUsers(string sourceIndex, string uniqueUserIndexName, DateTime dateTime, bool isDeltaLoad);
+
+
+        /// <summary>
+        /// Fetch Saved Search Filters Count, Favorites List Count, Subscriptions Count and writes to Elastic Search.
+        /// </summary>
+        /// <param name="requestData"></param>
+        /// <param name="type"></param>
+        /// <param name="statiticsName"></param>
+        void WriteSavedSearchFavoritesListSubscriptionsToLogs(Dictionary<string, int> requestData, string type, string statiticsName);
     }
 }

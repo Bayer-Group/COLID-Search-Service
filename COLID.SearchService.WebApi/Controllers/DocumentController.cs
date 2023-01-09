@@ -77,6 +77,29 @@ namespace COLID.SearchService.WebApi.Controllers
             }
         }
 
+        /// <summary>
+        /// Return the list of documents for a given identifier list
+        /// </summary>
+        /// <param name="identifiers">a list of identifiers to search for</param>
+        /// <param name="includeDraft">Include drafts in the results</param>
+        /// <returns>Elastic search documents</returns>
+        [HttpPost]
+        [Route("documentsByIds")]
+        public IActionResult GetDocumentsByIds([FromBody] IEnumerable<string> identifiers, [FromQuery] bool includeDraft = false)
+        {
+            try
+            {
+                return Ok(_documentService.GetDocumentsByIds(identifiers, includeDraft));
+            }
+            catch (ArgumentNullException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (EntityNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+        }
 
         /// <summary>
         /// Return the document for a given identifier

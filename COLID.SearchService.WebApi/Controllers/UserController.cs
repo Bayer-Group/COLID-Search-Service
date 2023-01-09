@@ -35,5 +35,46 @@ namespace COLID.SearchService.WebApi.Controllers
             _userService.WritePIDDMPUniqueUsers(appName.ToString());
             return Ok();
         }
+
+        /// <summary>
+        /// Fetches Saved Search Filters Count and writes to Elastic Search.
+        /// </summary>
+        /// <response code="200">Successfull request</response>
+        /// <response code="500">If an unexpected error occurs</response>
+        [HttpPost]
+        [Route("writeAllSavedSearchFiltersCountToLogs")]
+        public IActionResult WriteDmpAllSavedSearchFiltersCountToLogs([FromBody] Dictionary<string, int> allSavedSearchFilters)
+        {
+            _userService.WriteDmpAllSavedSearchFiltersCountToLogs(allSavedSearchFilters);
+            return Ok();
+        }
+
+        /// <summary>
+        /// Fetches Favorites List Count and writes to Elastic Search.
+        /// </summary>
+        /// <response code="200">Successfull request</response>
+        /// <response code="500">If an unexpected error occurs</response>
+        [HttpPost]
+        [Route("writeFavoritesListCountToLogs")]
+        public IActionResult WriteFavoritesListCountToLogs(Dictionary<string, int> allFavoritesList)
+        {
+            _userService.WriteFavoritesListCountToLogs(allFavoritesList);
+            return Ok();
+        }
+
+        /// <summary>
+        /// Fetches Subscriptions Count and writes to Elastic Search.
+        /// </summary>
+        /// <response code="200">Successfull request</response>
+        /// <response code="500">If an unexpected error occurs</response>
+        [HttpPost]
+        [Route("writeAllSubscriptionsCountToLogs")]
+        public IActionResult WriteAllSubscriptionsCountToLogs(Dictionary<string, int> allSubscriptions)
+        {
+            _userService.WriteAllSubscriptionsCountToLogs(allSubscriptions);
+            return Ok();
+        }
+
+
     }
 }

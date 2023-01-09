@@ -1,4 +1,4 @@
-using COLID.SearchService.Repositories.Constants;
+﻿using COLID.SearchService.Repositories.Constants;
 using Nest;
 
 namespace COLID.SearchService.Repositories.Indexing.Extensions

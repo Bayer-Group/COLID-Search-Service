@@ -49,5 +49,20 @@ namespace COLID.SearchService.Services.Implementation
                 _elasticSearchRepository.CountAndWriteUniqueUsers(sourceIndex, uniqueUserIndexName, DateTime.Now.Date.AddDays(-1), true);
             }
         }
+
+        public void WriteDmpAllSavedSearchFiltersCountToLogs(Dictionary<string, int> allSavedSearchFilters)
+        {
+            _elasticSearchRepository.WriteSavedSearchFavoritesListSubscriptionsToLogs(allSavedSearchFilters, "savedSearchCount", "DMP_SAVEDSEARCH_FILTERS");
+        }
+
+        public void WriteFavoritesListCountToLogs(Dictionary<string, int> allFavoritesList)
+        {
+            _elasticSearchRepository.WriteSavedSearchFavoritesListSubscriptionsToLogs(allFavoritesList, "favoritesListCount", "DMP_FAVORITESLIST");
+        }
+
+        public void WriteAllSubscriptionsCountToLogs(Dictionary<string, int> allSubscriptions)
+        {
+            _elasticSearchRepository.WriteSavedSearchFavoritesListSubscriptionsToLogs(allSubscriptions, "userSubscriptionsCount", "DMP_USER_SUBSCRIPTIONS");
+        }
     }
 }
