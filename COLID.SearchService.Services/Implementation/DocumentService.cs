@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Web;
 using COLID.Common.Extensions;
@@ -11,6 +12,7 @@ using COLID.SearchService.DataModel.DTO;
 using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Repositories.Interface;
 using COLID.SearchService.Services.Interface;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -28,6 +30,14 @@ namespace COLID.SearchService.Services.Implementation
         private readonly IElasticSearchRepository _elasticSearchRepository;
         private readonly JsonSerializerSettings _serializerSettings;
         private readonly ILogger<DocumentService> _logger;
+        // getting the service url ex: pid.bayer..
+        private static readonly string _basePath = Path.GetFullPath("appsettings.json");
+        private static readonly string _filePath = _basePath.Substring(0, _basePath.Length - 16);
+        private static IConfigurationRoot _configuration = new ConfigurationBuilder()
+                     .SetBasePath(_filePath)
+                    .AddJsonFile("appsettings.json")
+                    .Build();
+        public static readonly string _httpServiceUrl = _configuration.GetValue<string>("HttpServiceUrl");
 
         public DocumentService(IOptionsMonitor<ColidMessageQueueOptions> messageQueuingOptionsAccessor, IElasticSearchRepository elasticSearchRepository,
            ILogger<DocumentService> logger)
@@ -227,7 +237,7 @@ namespace COLID.SearchService.Services.Implementation
 
         private static string GetPidUrl(JObject document)
         {
-            return document["http://pid.bayer.com/kos/19014/hasPID"]?["outbound"]?[0]?["value"]?.ToString();
+            return document[_httpServiceUrl + "kos/19014/hasPID"]?["outbound"]?[0]?["value"]?.ToString();
         }
 
         private static string GetOutboundUri(string key, JObject document)

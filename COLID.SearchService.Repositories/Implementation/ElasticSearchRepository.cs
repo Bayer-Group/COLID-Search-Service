@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -65,6 +66,9 @@ namespace COLID.SearchService.Repositories.Implementation
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly string _defaultType = "_doc";
         private readonly IConfiguration _configuration;
+        private readonly string _serviceUrl;
+        private readonly string _httpServiceUrl;
+
 #if DEBUG
         private readonly IList<string> _messages;
 #endif
@@ -94,6 +98,8 @@ namespace COLID.SearchService.Repositories.Implementation
             _statiticsLogService = statiticsLogService;
             _logger = logger;
             _configuration = configuration;
+            _serviceUrl = _configuration.GetValue<string>("ServiceUrl");
+            _httpServiceUrl = _configuration.GetValue<string>("HttpServiceUrl");
 
 #if DEBUG
             _messages = new List<string>();
@@ -967,7 +973,7 @@ namespace COLID.SearchService.Repositories.Implementation
 
             queryContainer |= new NestedQuery
             {
-                Path = "http://pid.bayer.com/kos/19050/LinkTypes.outbound",
+                Path = _httpServiceUrl + "kos/19050/LinkTypes.outbound",
                 ScoreMode = NestedScoreMode.Sum,
                 Boost = 0.5,
                 Query = queryString
@@ -975,7 +981,7 @@ namespace COLID.SearchService.Repositories.Implementation
 
             queryContainer |= new NestedQuery
             {
-                Path = "http://pid.bayer.com/kos/19050/LinkTypes.inbound",
+                Path = _httpServiceUrl + "kos/19050/LinkTypes.inbound",
                 ScoreMode = NestedScoreMode.Sum,
                 Boost = 0.5,
                 Query = queryString
@@ -1228,7 +1234,7 @@ namespace COLID.SearchService.Repositories.Implementation
                 )
                 .Source(sf => sf
                     .Includes(i => i
-                        .Field("http://www.w3.org/1999/02/22-rdf-syntax-ns#type.properties.https://pid.bayer.com/kos/19050#ControlledVocabulary")
+                        .Field("http://www.w3.org/1999/02/22-rdf-syntax-ns#type.properties." + _serviceUrl + "kos/19050#ControlledVocabulary")
                     )
                 )
             );

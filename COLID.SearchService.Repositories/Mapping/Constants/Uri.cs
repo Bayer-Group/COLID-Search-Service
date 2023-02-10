@@ -1,23 +1,37 @@
-﻿namespace COLID.SearchService.Repositories.Mapping.Constants
+﻿using System.IO;
+using Microsoft.Extensions.Configuration;
+
+namespace COLID.SearchService.Repositories.Mapping.Constants
 {
     public class Uris
     {
+        // getting the service url ex: pid.bayer..
+        private static readonly string _basePath = Path.GetFullPath("appsettings.json");
+        private static readonly string _filePath = _basePath.Substring(0, _basePath.Length - 16);
+        private static IConfigurationRoot _configuration = new ConfigurationBuilder()
+                     .SetBasePath(_filePath)
+                    .AddJsonFile("appsettings.json")
+                    .Build();
+        public static readonly string _serviceUrl = _configuration.GetValue<string>("ServiceUrl");
+        public static readonly string _httpServiceUrl = _configuration.GetValue<string>("HttpServiceUrl");
+
+
         // Pid related
 
-        public const string Person = @"http://pid.bayer.com/kos/19014/Person";
-        public const string HasNetworkAddress = @"http://pid.bayer.com/kos/19014/hasNetworkAddress";
-        public const string HasPid = @"http://pid.bayer.com/kos/19014/hasPID";
-        public const string HasBaseUri = @"https://pid.bayer.com/kos/19050/hasBaseURI";
-        public const string HasVersion = @"https://pid.bayer.com/kos/19050/hasVersion";
-        public const string HasVersions = @"https://pid.bayer.com/kos/19050/hasVersions";
-        public const string HasContactPerson = @"https://pid.bayer.com/kos/19050/hasContactPerson";
-        public const string HasLabel = @"https://pid.bayer.com/kos/19050/hasLabel";
-        public const string HasNetworkedResourceLabel = @"https://pid.bayer.com/kos/19050/hasNetworkedResourceLabel";
-        public const string LinkTypes = @"http://pid.bayer.com/kos/19050/LinkTypes";
-        public const string Distribution = @"https://pid.bayer.com/kos/19050/distribution";
-        public const string DistributionEndpointLifecycleStatus = @"https://pid.bayer.com/kos/19050/hasDistributionEndpointLifecycleStatus";
-        public const string PermanentIdentifer = @"http://pid.bayer.com/kos/19014/PermanentIdentifier";
-        public const string LastChangeDatetime = @"https://pid.bayer.com/kos/19050/lastChangeDateTime";
+        public static readonly string Person =  _httpServiceUrl + @"kos/19014/Person";
+        public static readonly string HasNetworkAddress = _httpServiceUrl + @"kos/19014/hasNetworkAddress";
+        public static readonly string HasPid = _httpServiceUrl + @"kos/19014/hasPID";
+        public static readonly string HasBaseUri = _serviceUrl + @"kos/19050/hasBaseURI";
+        public static readonly string HasVersion = _serviceUrl + @"kos/19050/hasVersion";
+        public static readonly string HasVersions = _serviceUrl + @"kos/19050/hasVersions";
+        public static readonly string HasContactPerson = _serviceUrl + @"kos/19050/hasContactPerson";
+        public static readonly string HasLabel = _serviceUrl + @"kos/19050/hasLabel";
+        public static readonly string HasNetworkedResourceLabel = _serviceUrl + @"kos/19050/hasNetworkedResourceLabel";
+        public static readonly string LinkTypes = _httpServiceUrl + @"kos/19050/LinkTypes";
+        public static readonly string Distribution = _serviceUrl + @"kos/19050/distribution";
+        public static readonly string DistributionEndpointLifecycleStatus = _serviceUrl + @"kos/19050/hasDistributionEndpointLifecycleStatus";
+        public static readonly string PermanentIdentifer = _httpServiceUrl + @"kos/19014/PermanentIdentifier";
+        public static readonly string LastChangeDatetime = _serviceUrl + @"kos/19050/lastChangeDateTime";
 
         // Topbraid related
 
