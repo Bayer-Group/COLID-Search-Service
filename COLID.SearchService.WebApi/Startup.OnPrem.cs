@@ -1,4 +1,6 @@
-﻿using System;
+using System;
+using COLID.Cache;
+using COLID.SearchService.WebApi.Settings;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,6 +11,7 @@ namespace COLID.SearchService.WebApi
         public void ConfigureOnPremServices(IServiceCollection services)
         {
             ConfigureServices(services);
+            services.AddCacheModule(Configuration, JsonSerializerSettings.GetSerializerSettings());
         }
 
         public void ConfigureOnPrem(IApplicationBuilder app)

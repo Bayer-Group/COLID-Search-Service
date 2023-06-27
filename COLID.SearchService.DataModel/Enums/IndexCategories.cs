@@ -5,7 +5,7 @@ using System.Text;
 
 namespace COLID.SearchService.DataModel
 {
-    public enum indexEnum
+    public enum IndexCategories
     {
         PID,
         DMP 

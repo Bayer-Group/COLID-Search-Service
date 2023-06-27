@@ -1,21 +1,29 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Web;
 using Amazon;
 using Amazon.Runtime;
+using COLID.Cache.Services;
 using COLID.Common.Enums;
 using COLID.Common.Extensions;
 using COLID.Exception.Models;
 using COLID.Exception.Models.Business;
+using COLID.Graph.Metadata.Constants;
+using COLID.Graph.Metadata.DataModels.FilterGroup;
 using COLID.Graph.Metadata.DataModels.Metadata;
 using COLID.Graph.TripleStore.Extensions;
+using COLID.Identity.Extensions;
+using COLID.Identity.Services;
 using COLID.SearchService.DataModel.Configuration;
 using COLID.SearchService.DataModel.DTO;
 using COLID.SearchService.DataModel.Search;
+using COLID.SearchService.Repositories.Configuration;
 using COLID.SearchService.Repositories.Constants;
 using COLID.SearchService.Repositories.DataModel;
 using COLID.SearchService.Repositories.Extensions;
@@ -26,7 +34,7 @@ using COLID.SearchService.Repositories.Mapping.Constants;
 using COLID.SearchService.Repositories.Mapping.Extensions;
 using COLID.SearchService.Repositories.Mapping.Options;
 using COLID.StatisticsLog.Services;
-
+using CorrelationId.Abstractions;
 using Elasticsearch.Net;
 using Elasticsearch.Net.Aws;
 using Microsoft.AspNetCore.Http;
@@ -37,6 +45,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nest;
 using Nest.JsonNetSerializer;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 
@@ -68,7 +77,12 @@ namespace COLID.SearchService.Repositories.Implementation
         private readonly IConfiguration _configuration;
         private readonly string _serviceUrl;
         private readonly string _httpServiceUrl;
-
+        private readonly ICacheService _cacheService;
+        private readonly bool _bypassProxy;
+        private readonly IHttpClientFactory _clientFactory;
+        private readonly ITokenService<ColidRegistrationServiceTokenOptions> _registrationServiceTokenService;
+        private readonly CancellationToken _cancellationToken;
+        private readonly ICorrelationContextAccessor _correlationContext;
 #if DEBUG
         private readonly IList<string> _messages;
 #endif
@@ -78,9 +92,12 @@ namespace COLID.SearchService.Repositories.Implementation
             IHttpContextAccessor httpContextAccessor,
             IGeneralLogService statiticsLogService,
             ILogger<ElasticSearchRepository> logger,
-
             IMemoryCache memoryCache,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            ICacheService cacheService,
+            IHttpClientFactory clientFactory,
+            ITokenService<ColidRegistrationServiceTokenOptions> registrationServiceTokenService,
+            ICorrelationContextAccessor correlationContext)
         {
             // Read and assing values from the appsettings for initalization
             var options = optionsAccessor.CurrentValue;
@@ -100,7 +117,12 @@ namespace COLID.SearchService.Repositories.Implementation
             _configuration = configuration;
             _serviceUrl = _configuration.GetValue<string>("ServiceUrl");
             _httpServiceUrl = _configuration.GetValue<string>("HttpServiceUrl");
-
+            _cacheService = cacheService;
+            _bypassProxy = _configuration.GetValue<bool>("BypassProxy");
+            _clientFactory = clientFactory;
+            _registrationServiceTokenService = registrationServiceTokenService;
+            _cancellationToken = httpContextAccessor?.HttpContext?.RequestAborted ?? CancellationToken.None;
+            _correlationContext = correlationContext;
 #if DEBUG
             _messages = new List<string>();
 #endif
@@ -126,7 +148,9 @@ namespace COLID.SearchService.Repositories.Implementation
             var config = new ConnectionSettings(pool, httpConnection, sourceSerializer: JsonNetSerializer.Default);
             config.DefaultIndex(_documentSearchAlias);
             config.ThrowExceptions();
-
+            
+            if (_bypassProxy)
+                config.DisableAutomaticProxyDetection();
 #if DEBUG
             config.DisableDirectStreaming(true)
                 .OnRequestCompleted(request =>
@@ -134,14 +158,15 @@ namespace COLID.SearchService.Repositories.Implementation
                     if (request.RequestBodyInBytes != null)
                     {
                         var message = System.Text.Encoding.UTF8.GetString(request.RequestBodyInBytes);
+                        
                         _messages.Add($"Request send at {GetCurrentTimeStamp()}");
                         _messages.Add(message);
                     }
-                    if (request.ResponseBodyInBytes != null)
-                    {
-                        var message = System.Text.Encoding.UTF8.GetString(request.ResponseBodyInBytes);
-                        _messages.Add($"Response received at {GetCurrentTimeStamp()}");
-                    }
+                    //if (request.ResponseBodyInBytes != null)
+                    //{
+                    //    var message = System.Text.Encoding.UTF8.GetString(request.ResponseBodyInBytes);
+                    //    _messages.Add($"Response received at {GetCurrentTimeStamp()}");
+                    //}
                 });
 #endif
             // Instantiate Elasticsearch Client
@@ -162,7 +187,7 @@ namespace COLID.SearchService.Repositories.Implementation
             if (!response.Found)
             {
                 var errorMessage = $"No document was found for the given identifier {identifier}";
-                _logger.LogDebug(errorMessage);
+                _logger.LogDebug("{ErrorMessage}", errorMessage);
                 throw new EntityNotFoundException(errorMessage, identifier);
             }
 
@@ -194,7 +219,7 @@ namespace COLID.SearchService.Repositories.Implementation
                 if (!response.IsValid)
                 {
                     var errorMessage = "No valid result was found for the given identifiers";
-                    _logger.LogDebug(errorMessage);
+                    _logger.LogDebug("{ErrorMessage}", errorMessage);
                     throw new EntityNotFoundException(errorMessage);
                 }
 
@@ -212,7 +237,7 @@ namespace COLID.SearchService.Repositories.Implementation
             }
             catch (System.Exception ex)
             {
-                _logger.LogError("Exception while trying to get Elasticsearch error reason: " + ex.ToString());
+                _logger.LogError("Exception while trying to get Elasticsearch error reason: {Message}", ex.Message);
                 return searchresult;
             }
 
@@ -259,7 +284,7 @@ namespace COLID.SearchService.Repositories.Implementation
                 if (!response.IsValid)
                 {
                     var errorMessage = "No valid result was found for the given identifiers";
-                    _logger.LogDebug(errorMessage);
+                    _logger.LogDebug("{Message}", errorMessage);
                     throw new EntityNotFoundException(errorMessage);
                 }
 
@@ -271,7 +296,7 @@ namespace COLID.SearchService.Repositories.Implementation
             }
             catch (ElasticsearchClientException ex)
             {
-                _logger.LogError("Exception while trying to get Elasticsearch error reason: " + ex.ToString() + "DebugInformation : " + ex.DebugInformation);
+                _logger.LogError("Exception while trying to get Elasticsearch error reason: {Reason}, DebugInformation: {Information}", ex.ToString(), ex.DebugInformation);
                 return resultDict;
             }
             return resultDict;
@@ -288,13 +313,13 @@ namespace COLID.SearchService.Repositories.Implementation
             jsonQuery.Add("highlight", highlight);
             var jsonString = jsonQuery.ToString();
 
-            _logger.LogDebug($"Sending search_request={jsonString} to ES");
+            _logger.LogDebug("Sending search_request={JsonString} to ES", jsonString);
 
             // Execute search
             var searchAlias = GetSearchAlias(searchIndex);
             var lowLevelResponse = _elasticClient.LowLevel.Search<StringResponse>(searchAlias, jsonString);
 
-            _logger.LogDebug($"Retrieved response with debug_information={lowLevelResponse.DebugInformation}");
+            _logger.LogDebug("Retrieved response with debug_information={DebugInformation}", lowLevelResponse.DebugInformation);
 
             var response = JObject.Parse(lowLevelResponse.Body);
 
@@ -308,7 +333,7 @@ namespace COLID.SearchService.Repositories.Implementation
                 }
                 catch (System.Exception e)
                 {
-                    _logger.LogError("Exception while trying to get Elasticsearch error reason: " + e.ToString());
+                    _logger.LogError("Exception while trying to get Elasticsearch error reason: {Reason}", e.ToString());
                 }
                 var isInvalidQuery = reason.StartsWith("Failed to parse query");
                 if (isInvalidQuery)
@@ -350,7 +375,20 @@ namespace COLID.SearchService.Repositories.Implementation
 #if DEBUG
             _messages.Clear();
 #endif
-            var facets = GetAllFacets();
+            //var top10Props = new List<string> {
+            //    "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+            //    "https://pid.bayer.com/kos/19050/47119343",
+            //    "https://pid.bayer.com/kos/19050#hasConsumerGroup",
+            //    "https://pid.bayer.com/kos/19050/hasInternalLifecycle",
+            //    "https://pid.bayer.com/d188c668-b710-45b2-9631-faf29e85ac8d/contains_data_from_country",
+            //    "https://pid.bayer.com/kos/19050/distribution.outbound.value.https://pid.bayer.com/kos/19050/hasGeospatialLayer",
+            //    "https://pid.bayer.com/d188c668-b710-45b2-9631-faf29e85ac8d/was_generated_by",
+            //    "https://pid.bayer.com/kos/19050/hasLifecycleStatus",
+            //    "https://pid.bayer.com/kos/19050/hasDistributionEndpointLifecycleStatus",
+            //    "https://pid.bayer.com/kos/19050/lastChangeUser" };
+
+            //var allFacets = GetAllFacets();            
+            var facets = GetAllFacets(); //allFacets.Where(x => top10Props.Contains(x.Name)).ToList();
             var response = new FacetDTO();
 
             CallWithTimeStampLog(() =>
@@ -442,7 +480,7 @@ namespace COLID.SearchService.Repositories.Implementation
                 }
                 catch (System.Exception)
                 {
-                    _logger.LogError($"Could not get proper label from metadata for the following datefacet {key}");
+                    _logger.LogError("Could not get proper label from metadata for the following datefacet {Key}", key);
                 }
             }
 
@@ -470,8 +508,8 @@ namespace COLID.SearchService.Repositories.Implementation
                 var properties = GetMetadataPropertiesByKey(metadataKey, metadataCollection);
                 string label = properties.GetValueOrDefault(Graph.Metadata.Constants.Shacl.Name, string.Empty);
                 // Always show facets on top if it is type i.e. Resource Type.
-                int order = Uris.RdfSyntaxType.Equals(metadataKey) ? 0 : properties.GetValueOrDefault(Graph.Metadata.Constants.Shacl.Order, 99999);
-                bool isTaxonomy = !Uris.RdfSyntaxType.Equals(metadataKey) && properties.ContainsKey("taxonomy");
+                int order = Uris.RdfSyntaxType.Equals(metadataKey, StringComparison.Ordinal) ? 0 : properties.GetValueOrDefault(Graph.Metadata.Constants.Shacl.Order, 99999);
+                bool isTaxonomy = !Uris.RdfSyntaxType.Equals(metadataKey, StringComparison.Ordinal) && properties.ContainsKey("taxonomy");
 
                 foreach (var (aggKey, aggBuckets) in aggValue)
                 {
@@ -527,13 +565,13 @@ namespace COLID.SearchService.Repositories.Implementation
         /// Returns metadata properties for specified key.
         /// </summary>
         /// <returns>Returns propertiens for key as dicitionary.</returns>
-        private IDictionary<string, dynamic> GetMetadataPropertiesByKey(string key, MetadataCollection metadataCollection = null)
+        private static IDictionary<string, dynamic> GetMetadataPropertiesByKey(string key, MetadataCollection metadataCollection = null)
         {
 
             IDictionary<string, dynamic> properties = new Dictionary<string, dynamic>();
 
             //Check which level of metadata
-            var is2ndLevel = key.Contains(_valueAccesor);
+            var is2ndLevel = key.Contains(_valueAccesor, StringComparison.Ordinal);
             if (is2ndLevel)
             {
                 var splittedKey = key.Split(_valueAccesor + ".");
@@ -567,66 +605,71 @@ namespace COLID.SearchService.Repositories.Implementation
         /// <returns>Returns a list with all aggregateable Properties.</returns>
         private IList<Facet> GetAllFacets()
         {
-            IList<Facet> facetList = null;
+            var allFacetList = new List<Facet>();
             CallWithTimeStampLog(() =>
             {
-                var metadataCollection = GetMetadataCollection();
-
-                facetList = new List<Facet>();
-                foreach (var metadata in metadataCollection)
+                allFacetList = _cacheService.GetOrAdd($"AllFacets", () =>
                 {
-                    // All values greater than 0 are considerd as facet
-                    if (metadata.Value.Properties.TryGetValue(Graph.Metadata.Constants.Shacl.IsFacet, out var mainIsFacet) && mainIsFacet > 0)
-                    {
-                        var containsTaxonomy = ContainsTaxonomy(metadata);
-                        var facet = new Facet
-                        {
-                            FacetType = (FacetType)mainIsFacet,
-                            Name = metadata.Key,
-                            IsRangeFilter = IsDateTimeDatatype(metadata),
-                            ContainsTaxonomy = containsTaxonomy,
-                            Taxonomy = containsTaxonomy ? TaxonomyTransformer.BuildFlatDictionary(metadata.Value.Properties[Strings.Taxonomy]) : null
-                        };
-                        facetList.Add(facet);
-                    }
-                    // Iterate for nested metadata
-                    foreach (var nestedMetadata in metadata.Value.NestedMetadata)
-                    {
-                        // Get only properties which are facets
-                        foreach (var nestedProperty in nestedMetadata.Properties)
-                        {
-                            var name = $"{metadata.Key}.outbound.value.{nestedProperty.Properties[Uris.HasPid]}";
+                    IList<Facet> facetList = null;
+                    var metadataCollection = GetMetadataCollection();
 
-                            // Check if nested property is facet and not included in the facet list already
-                            if (nestedProperty.Properties.TryGetValue(Graph.Metadata.Constants.Shacl.IsFacet, out var isFacet) && isFacet > 0 && !facetList.Any(x => x.Equals(name)))
+                    facetList = new List<Facet>();
+                    foreach (var metadata in metadataCollection)
+                    {
+                        // All values greater than 0 are considerd as facet
+                        if (metadata.Value.Properties.TryGetValue(Graph.Metadata.Constants.Shacl.IsFacet, out var mainIsFacet) && mainIsFacet > 0)
+                        {
+                            var containsTaxonomy = ContainsTaxonomy(metadata);
+                            var facet = new Facet
                             {
-                                var containsTaxonomy = ContainsTaxonomy(metadata);
-                                var facet = new Facet
+                                FacetType = (FacetType)mainIsFacet,
+                                Name = metadata.Key,
+                                IsRangeFilter = IsDateTimeDatatype(metadata),
+                                ContainsTaxonomy = containsTaxonomy,
+                                Taxonomy = containsTaxonomy ? TaxonomyTransformer.BuildFlatDictionary(metadata.Value.Properties[Strings.Taxonomy]) : null
+                            };
+                            facetList.Add(facet);
+                        }
+                        // Iterate for nested metadata
+                        foreach (var nestedMetadata in metadata.Value.NestedMetadata)
+                        {
+                            // Get only properties which are facets
+                            foreach (var nestedProperty in nestedMetadata.Properties)
+                            {
+                                var name = $"{metadata.Key}.outbound.value.{nestedProperty.Properties[Uris.HasPid]}";
+
+                                // Check if nested property is facet and not included in the facet list already
+                                if (nestedProperty.Properties.TryGetValue(Graph.Metadata.Constants.Shacl.IsFacet, out var isFacet) && isFacet > 0 && !facetList.Any(x => x.Equals(name)))
                                 {
-                                    FacetType = (FacetType)nestedProperty.Properties[Graph.Metadata.Constants.Shacl.IsFacet],
-                                    Name = name,
-                                    IsRangeFilter = false,
-                                    ContainsTaxonomy = ContainsTaxonomy(metadata),
-                                    Taxonomy = containsTaxonomy ? TaxonomyTransformer.BuildFlatDictionary(metadata.Value.Properties[Strings.Taxonomy]) : null
-                                };
-                                facetList.Add(facet);
+                                    var containsTaxonomy = ContainsTaxonomy(metadata);
+                                    var facet = new Facet
+                                    {
+                                        FacetType = (FacetType)nestedProperty.Properties[Graph.Metadata.Constants.Shacl.IsFacet],
+                                        Name = name,
+                                        IsRangeFilter = false,
+                                        ContainsTaxonomy = ContainsTaxonomy(metadata),
+                                        Taxonomy = containsTaxonomy ? TaxonomyTransformer.BuildFlatDictionary(metadata.Value.Properties[Strings.Taxonomy]) : null
+                                    };
+                                    facetList.Add(facet);
+                                }
                             }
                         }
                     }
-                }
-            }, nameof(GetAllFacets));
 
-            return facetList;
+                    return facetList;
+                }).ToList(); }, nameof(GetAllFacets));
+
+                return allFacetList;
         }
 
-        private bool IsDateTimeDatatype(KeyValuePair<string, MetadataProperty> attribute)
+        private static bool IsDateTimeDatatype(KeyValuePair<string, MetadataProperty> attribute)
         {
             return attribute.Value.Properties.Values.Contains(Graph.Metadata.Constants.DataTypes.DateTime);
         }
 
-        private bool ContainsTaxonomy(KeyValuePair<string, MetadataProperty> attribute)
+        private static bool ContainsTaxonomy(KeyValuePair<string, MetadataProperty> attribute)
         {
-            return attribute.Value.Properties.Keys.Contains(Strings.Taxonomy) && !attribute.Value.Key.Equals(Uris.RdfSyntaxType);
+            return attribute.Value.Properties.ContainsKey(Strings.Taxonomy) && !attribute.Value.Key.Equals(Uris.RdfSyntaxType, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -647,10 +690,10 @@ namespace COLID.SearchService.Repositories.Implementation
         }
 
         /// <summary>
-        /// <see cref="IElasticSearchRepository.IndexDocuments(JObject[])"/>
+        /// <see cref="IElasticSearchRepository.IndexDocuments(IList<JObject>)"/>
         /// New documents will be written to the update alias.
         /// </summary>
-        public object IndexDocuments(JObject[] documents, UpdateIndex updateIndex)
+        public object IndexDocuments(IList<JObject> documents, UpdateIndex updateIndex)
         {
             var descriptor = new BulkDescriptor();
             var index = GetUpdateAlias(updateIndex);
@@ -667,7 +710,7 @@ namespace COLID.SearchService.Repositories.Implementation
             return _elasticClient.Bulk(descriptor);
         }
 
-        private TimeSpan GetCurrentTimeStamp()
+        private static TimeSpan GetCurrentTimeStamp()
         {
             return DateTime.UtcNow.TimeOfDay;
         }
@@ -721,14 +764,9 @@ namespace COLID.SearchService.Repositories.Implementation
 
             // Query to get metadata for facets and enrich elasticsearch standard response
             if (searchRequest.EnableAggregation)
-
             {
-
                 CallWithTimeStampLog(() => { EnrichElasticsearchResponseForAggregationBuckets(esSearchRequest, searchRequest, ref result); }, "Enriching");
-
             }
-
-
 
             result.Suggest = esSearchRequest.Suggest;
             result.Hits = new HitDTO
@@ -738,22 +776,23 @@ namespace COLID.SearchService.Repositories.Implementation
                 MaxScore = esSearchRequest.HitsMetadata.MaxScore != null ? esSearchRequest.HitsMetadata.MaxScore.Value : 0
             };
 
-            WriteLogsAfterSearch(esSearchRequest, searchRequest);
+            CallWithTimeStampLog(() => { WriteLogsAfterSearch(esSearchRequest, searchRequest); } , "WriteLogsAfterSearch");
 #if DEBUG
             _messages.Insert(0, $"Api call made from client at {searchRequest.ApiCallTime} ");
             _messages.Insert(1, $"Api call received by server at {receivedTime} ");
             _messages.Add($"Respsone send from server at {GetCurrentTimeStamp()}");
             result.Messages = _messages;
 #endif
+            result.Took = esSearchRequest.Took;
             return result;
         }
 
         private void EnrichElasticsearchResponseForAggregationBuckets(ISearchResponse<dynamic> esSearchRequest, SearchRequestDto searchRequest, ref SearchResultDTO result)
         {
             // Query to get metadata for facets
-            IList<Facet> facets = null;
-            GetAllFacets();
-            CallWithTimeStampLog(() => { facets = GetAllFacets(); }, nameof(GetAllFacets));
+            IList<Facet> facets = GetAllFacets();
+            //GetAllFacets();
+            //CallWithTimeStampLog(() => { facets = GetAllFacets(); }, nameof(GetAllFacets));
             // Enrich Elasticsearch standard responses
             var dateFacets = facets.Where(x => x.IsRangeFilter);
             result.Aggregations = GetEnrichedResponseForFacets(esSearchRequest.Aggregations, searchRequest.AggregationFilters);
@@ -769,9 +808,11 @@ namespace COLID.SearchService.Repositories.Implementation
             var searchID = Guid.NewGuid();
 
             //Write search to logging
-            var additionalInfoSearch = new Dictionary<string, object>();
-            additionalInfoSearch.Add("searchText", searchRequest.SearchTerm);
-            additionalInfoSearch.Add("searchID", searchID.ToString());
+            var additionalInfoSearch = new Dictionary<string, object>
+            {
+                { "searchText", searchRequest.SearchTerm },
+                { "searchID", searchID.ToString() }
+            };
             // Write to logs
             _statiticsLogService.Info("DMP_SEARCH", additionalInfoSearch);
 
@@ -844,11 +885,12 @@ namespace COLID.SearchService.Repositories.Implementation
             // Write top search results to logs
             foreach (var data in requestData)
             {
-                var additionalInfo = new Dictionary<string, object>();
-
-                // Add additional info to logging
-                additionalInfo.Add("userId", data.Key);
-                additionalInfo.Add(type, data.Value);
+                var additionalInfo = new Dictionary<string, object>
+                {
+                    // Add additional info to logging
+                    { "userId", data.Key },
+                    { type, data.Value }
+                };
                 // Write to logs
                 _statiticsLogService.Info(statiticsName, additionalInfo);
             }
@@ -860,14 +902,14 @@ namespace COLID.SearchService.Repositories.Implementation
         /// Apply special transformations on search terms. Transformations can be to escape or remove special characters.
         /// </summary>
         /// <returns> Transformed search term. </returns>
-        private string ApplySearchTermTransformations(string searchTerm)
+        private static string ApplySearchTermTransformations(string searchTerm)
         {
             string newSearchTerm;
             // Escape Brackets ([]) for query string query.
             // Brackets are used in business context and has to be escaped, because in elastic they are used to query ranges.
-            newSearchTerm = searchTerm.Replace("[", @"\[");
-            newSearchTerm = newSearchTerm.Replace("]", @"\]");
-            newSearchTerm = string.IsNullOrEmpty(searchTerm) ? newSearchTerm : (newSearchTerm.Contains("/") ? Regex.Replace(newSearchTerm, @"\/?$", @"\/") : newSearchTerm);
+            newSearchTerm = searchTerm.Replace("[", @"\[", StringComparison.Ordinal);
+            newSearchTerm = newSearchTerm.Replace("]", @"\]", StringComparison.Ordinal);
+            newSearchTerm = string.IsNullOrEmpty(searchTerm) ? newSearchTerm : (newSearchTerm.Contains('/', StringComparison.Ordinal) ? Regex.Replace(newSearchTerm, @"\/?$", @"\/") : newSearchTerm);
 
             return newSearchTerm;
         }
@@ -948,7 +990,7 @@ namespace COLID.SearchService.Repositories.Implementation
 
                         // Link must not exists query with boolean OR operator
 
-                        rangeQuery |= !new ExistsQuery
+                        rangeQuery &= new ExistsQuery
 
                         {
 
@@ -1065,11 +1107,11 @@ namespace COLID.SearchService.Repositories.Implementation
                                                         );
 
                         }, $"{nameof(BuildSearchObject)}.ElasticSearchResult");
-
+            
             return searchResult;
         }
 
-        private IDictionary<string, QueryContainer> GetFilterQueriesForAggregations(IDictionary<string, List<string>> aggregationFilters, IList<Facet> aggregationFacets)
+        private static IDictionary<string, QueryContainer> GetFilterQueriesForAggregations(IDictionary<string, List<string>> aggregationFilters, IList<Facet> aggregationFacets)
         {
             IDictionary<string, QueryContainer> aggFiltersQueries = new Dictionary<string, QueryContainer>();
 
@@ -1151,7 +1193,7 @@ namespace COLID.SearchService.Repositories.Implementation
             }
             catch (System.Exception e)
             {
-                _logger.LogError(e.ToString());
+                _logger.LogError("{Message}", e.ToString());
             }
             return new List<string>();
         }
@@ -1166,7 +1208,7 @@ namespace COLID.SearchService.Repositories.Implementation
             }
             catch (System.Exception e)
             {
-                _logger.LogError(e.ToString());
+                _logger.LogError("{Message}", e.ToString());
             }
 
             // TODO return error
@@ -1216,8 +1258,9 @@ namespace COLID.SearchService.Repositories.Implementation
         /// <returns>Collection of current metadata for DMP.</returns>
         public MetadataCollection GetMetadataCollection()
         {
-            // Index with metadata holds only one document with the _id 1, which represents the current metadata.
-            var metadata = _elasticClient.Get<MetadataCollection>("1", req => req.Index(_metadataSearchAlias)).Source;
+            var metadata = _cacheService.GetOrAdd($"AllMetadata", () => _elasticClient.Get<MetadataCollection>("1", req => req.Index(_metadataSearchAlias)).Source);
+           // Index with metadata holds only one document with the _id 1, which represents the current metadata.
+           //var metadata = _elasticClient.Get<MetadataCollection>("1", req => req.Index(_metadataSearchAlias)).Source;
 
             return metadata;
         }
@@ -1463,17 +1506,17 @@ namespace COLID.SearchService.Repositories.Implementation
         {
             var additionalInformation = new Dictionary<string, object>
             {
-                {"requestId", (_httpContextAccessor.HttpContext == null) ? null :_httpContextAccessor.HttpContext.TraceIdentifier},
+                {"requestId", _httpContextAccessor.HttpContext?.TraceIdentifier},
                 {nameof(response.ApiCall), response.ApiCall}
             };
 
             if (response.ApiCall.Success)
             {
-                _logger.LogInformation(message, additionalInformation);
+                _logger.LogInformation("{Message}, {AdditionalInformation}", message, additionalInformation);
             }
             else
             {
-                _logger.LogError(message, additionalInformation);
+                _logger.LogError("{Message}, {AdditionalInformation}", message, additionalInformation);
             }
         }
 
@@ -1547,7 +1590,7 @@ namespace COLID.SearchService.Repositories.Implementation
                     {
                         var firstVisits = user.TopHits("first_visit");
                         var hits = firstVisits.Hits<JObject>();
-                        if (!user.Key.Equals(""))
+                        if (!user.Key.IsNullOrEmpty())
                         {
                             foreach (var hit in hits)
                             {
@@ -1561,7 +1604,7 @@ namespace COLID.SearchService.Repositories.Implementation
             catch (System.Exception ex)
             {
 
-                _logger.LogInformation(ex, ex.Message);
+                _logger.LogInformation(ex, "{Message}", ex.Message);
                 return new List<UserBucketDTO>();
 
             }
@@ -1580,12 +1623,12 @@ namespace COLID.SearchService.Repositories.Implementation
             }
             catch (System.Exception ex)
             {
-                _logger.LogInformation(ex, ex.Message);
+                _logger.LogInformation(ex, "{Message}", ex.Message);
                 return true;
             }
         }
 
-        public List<string> GetUserIDsInIndex(string index, List<string> userIds)
+        public IList<string> GetUserIDsInIndex(string index, IList<string> userIds)
         {
             try
             {
@@ -1612,7 +1655,7 @@ namespace COLID.SearchService.Repositories.Implementation
             }
             catch (System.Exception ex)
             {
-                _logger.LogInformation(ex, ex.Message);
+                _logger.LogInformation(ex, "{Message}", ex.Message);
                 return null;
             }
         }
@@ -1627,7 +1670,7 @@ namespace COLID.SearchService.Repositories.Implementation
             }
             catch (System.Exception ex)
             {
-                _logger.LogError("Failed to add user={userID} to index={index}", index, userID, ex, ex.Message);
+                _logger.LogError("Failed to add user={UserID} to index={Index} with message={Message}", userID, index, ex.Message);
                 return false;
             }
         }
@@ -1638,7 +1681,7 @@ namespace COLID.SearchService.Repositories.Implementation
             var userIds = new List<string>();
             if (response != null)
             {
-                userIds = response.Where(x => !x.Key.Equals("")).Select(x => x.Key).ToList();
+                userIds = response.Where(x => !x.Key.IsNullOrEmpty()).Select(x => x.Key).ToList();
 
                 if (isDeltaLoad)
                 {
@@ -1682,7 +1725,7 @@ namespace COLID.SearchService.Repositories.Implementation
             return new List<string>();
         }
 
-        private JObject CreateDocumetForUniqueUser(string userID, JObject firstVisitHit)
+        private static JObject CreateDocumetForUniqueUser(string userID, JObject firstVisitHit)
         {
             var timestamp = firstVisitHit["fields"]["logEntry"]["Timestamp"];
             var newDocument = JObject.FromObject(new
@@ -1693,5 +1736,81 @@ namespace COLID.SearchService.Repositories.Implementation
                 );
             return newDocument;
         }
-    }
+
+        public async Task<IList<FilterGroup>> GetFilterGroupAndProperties()
+        {            
+            //Get Filter Groups from Registartion Service
+            var filterGrp = new List<FilterGroup>();
+            using (var httpClient = (_bypassProxy ? _clientFactory.CreateClient("NoProxy") : _clientFactory.CreateClient()))
+            {
+                var registrationServiceGetFilterGroupUrl = $"{_configuration.GetConnectionString("colidRegistrationServiceUrl")}/api/v3/metadata/filterGroup";
+
+                try
+                {
+                    var accessToken = await _registrationServiceTokenService.GetAccessTokenForWebApiAsync();
+                    //_logger.LogError("AccesToken :" + accessToken);
+                    var response = await httpClient.SendRequestWithOptionsAsync(System.Net.Http.HttpMethod.Get, registrationServiceGetFilterGroupUrl,
+                        null, accessToken, _cancellationToken, _correlationContext.CorrelationContext);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.LogError("Error requesting Reg Service. Response Status Code {code} with token {token}", response.StatusCode, accessToken);
+                        throw new System.Exception("Something went wrong while getting Filter Group");
+                    }                                       
+
+                    _logger.LogInformation("Filter group: successfully retrieved taxonomies");
+                    var result = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                    filterGrp = JsonConvert.DeserializeObject<List<FilterGroup>>(result);
+                }
+                catch (System.Exception ex)
+                {
+                    _logger.LogError("Error :" + (ex.InnerException == null ? ex.Message : ex.InnerException.Message));
+                }
+            }
+
+            var listOfExistingProp = filterGrp.SelectMany(x => x.Filters.Select(y => y.PropertyUri.ToString())).ToList();
+
+            //Get Metadata from Elastic
+            var curMetadata = GetMetadataCollection();
+
+            var listOfMissingProp = curMetadata.Where(x => !listOfExistingProp.Contains(x.Key)).ToList();
+
+            //Add a new group "Others" for all Properties which is not specified in the Group
+            FilterGroup OtherGrp = new FilterGroup { GroupName = "Others", Order = filterGrp.Count + 1 };
+            List<FilterProperty> OtherProperty = new List<FilterProperty>();
+
+            //Ignore List of Properties
+            List<string> ignoredProperties = new List<string>();
+            ignoredProperties.Add(Resource.HasLabel);
+            ignoredProperties.Add(Resource.hasPID);
+            ignoredProperties.Add(Resource.Distribution);
+            ignoredProperties.Add(Resource.HasLaterVersion);
+            ignoredProperties.Add(Resource.HasRevision);
+            ignoredProperties.Add(Resource.HasSourceID);
+            ignoredProperties.Add(Resource.MetadataGraphConfiguration);
+            ignoredProperties.AddRange(Resource.LinkTypes.AllLinkTypes);
+
+            foreach (var metadata in listOfMissingProp)
+            {
+                //Check for Properties to Ignore
+                if (ignoredProperties.Contains(metadata.Key))
+                    continue;
+
+                // All values greater than 0 are considerd as facet
+                if (metadata.Value.Properties.TryGetValue(Graph.Metadata.Constants.Shacl.IsFacet, out var mainIsFacet) && mainIsFacet > 0)
+                {
+                    //Add Properties
+                    OtherProperty.Add(new FilterProperty { PropertyUri = new Uri(metadata.Key), PropertyOrder = metadata.Value.Properties.GetValueOrDefault(Shacl.Order, 0) });
+                }
+            }
+            if (OtherProperty.Count > 0)
+            {
+                OtherGrp.Filters = OtherProperty.OrderBy(x => x.PropertyOrder).ToList();
+                filterGrp.Add(OtherGrp);
+            }
+
+            return filterGrp;
+            
+        }
+    }    
 }

@@ -4,8 +4,8 @@ namespace COLID.SearchService.DataModel.DataTypes
 {
     public class Tracking
     {
-#if DEBUG
+//#if DEBUG
         public IList<string> Messages { get; set; }
-#endif
+//#endif
     }
 }

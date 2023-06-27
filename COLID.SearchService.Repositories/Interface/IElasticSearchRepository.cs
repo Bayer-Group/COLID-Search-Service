@@ -1,5 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using COLID.Graph.Metadata.DataModels.FilterGroup;
 using COLID.Graph.Metadata.DataModels.Metadata;
 using COLID.SearchService.DataModel.DTO;
 using COLID.SearchService.DataModel.Search;
@@ -32,7 +34,7 @@ namespace COLID.SearchService.Repositories.Interface
         /// <param name="identifier">The identifier for which a document is searched for</param>
         /// <param name="searchIndex">The index from which the document should be fetched</param>
         /// <returns>Return a document with the given id</returns>
-        object GetDocument(string identifier, UpdateIndex searchIndex);
+        object GetDocument(string identifier, UpdateIndex updateIndex);
 
         /// <summary>
         /// Return a document with the given id
@@ -40,7 +42,7 @@ namespace COLID.SearchService.Repositories.Interface
         /// <param name="identifier">The identifier for which a document is searched for</param>
         /// <param name="searchIndex">The index from which the document should be fetched</param>
         /// <returns>Return a document with the given id</returns>
-        IList<JObject> GetSchemaUIResource(IEnumerable<string> identifier, UpdateIndex searchIndex);
+        IList<JObject> GetSchemaUIResource(IEnumerable<string> identifiers, UpdateIndex updateIndex);
 
         /// <summary>
         /// Return specified fields to a list of identifiers based on the given index to consider.
@@ -91,7 +93,7 @@ namespace COLID.SearchService.Repositories.Interface
         /// </summary>
         /// <param name="documents">Contents for each document</param>
         /// <param name="updateIndex">The index to which the documents should be indexed</param>
-        object IndexDocuments(JObject[] documents, UpdateIndex updateIndex);
+        object IndexDocuments(IList<JObject> documents, UpdateIndex updateIndex);
 
         /// <summary>
         /// Executes a search on the current index with the given query with the DMP default search logic.
@@ -186,5 +188,11 @@ namespace COLID.SearchService.Repositories.Interface
         /// <param name="type"></param>
         /// <param name="statiticsName"></param>
         void WriteSavedSearchFavoritesListSubscriptionsToLogs(Dictionary<string, int> requestData, string type, string statiticsName);
+
+        /// <summary>
+        /// Get List of Filter groups
+        /// </summary>
+        /// <returns></returns>
+        Task<IList<FilterGroup>> GetFilterGroupAndProperties();
     }
 }

@@ -30,7 +30,7 @@ namespace COLID.SearchService.WebApi.Controllers
         /// <response code="500">If an unexpected error occurs</response>
         [HttpPost]
         [Route("writepiddmpuniqueusers")]
-        public IActionResult WriteUsersPIDDMP(indexEnum appName)
+        public IActionResult WriteUsersPIDDMP(IndexCategories appName)
         {
             _userService.WritePIDDMPUniqueUsers(appName.ToString());
             return Ok();

@@ -15,7 +15,7 @@ namespace COLID.SearchService.Services.Implementation
     /// </summary>
     public class RemoteSimilarityService : IRemoteSimilarityService
     {
-        private string _similarityServiceUrl;
+        private readonly string _similarityServiceUrl;
 
         public RemoteSimilarityService(IConfiguration configuration)
         {

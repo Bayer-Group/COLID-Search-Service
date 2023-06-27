@@ -1,4 +1,5 @@
-﻿using System.IO.Compression;
+using System.IO.Compression;
+using System.Net.Http;
 using COLID.Common.Logger;
 using COLID.Exception;
 using COLID.Identity;
@@ -19,8 +20,6 @@ namespace COLID.SearchService.WebApi
 {
     public partial class Startup
     {
-        private readonly IWebHostEnvironment _env;
-
         /// <summary>
         /// Create the object of <see cref="Startup"/>.
         /// </summary>
@@ -55,7 +54,14 @@ namespace COLID.SearchService.WebApi
             services.AddCors();
             services.AddControllers().AddNewtonsoftJson();
             services.AddHttpContextAccessor();
-            services.AddHttpClient();
+            services.AddHttpClient("NoProxy").ConfigurePrimaryHttpMessageHandler(() =>
+            {
+                return new HttpClientHandler
+                {
+                    UseProxy = false,
+                    Proxy = null
+                };
+            });
             services.AddHealthChecks();
 
             services.AddIdentityModule(Configuration);

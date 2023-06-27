@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using COLID.Cache;
+using COLID.SearchService.WebApi.Settings;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace COLID.SearchService.WebApi
 {
@@ -14,6 +16,7 @@ namespace COLID.SearchService.WebApi
         public void ConfigureReleaseServices(IServiceCollection services)
         {
             ConfigureServices(services);
+            services.AddCacheModule(Configuration, JsonSerializerSettings.GetSerializerSettings());
         }
     }
 }

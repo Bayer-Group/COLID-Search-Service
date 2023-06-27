@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>    
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningsAsErrors>false</WarningsAsErrors>   
+    <CodeAnalysisRuleSet>$(SolutionDir)coding.ruleset</CodeAnalysisRuleSet>    
+    <Authors>COLID team</Authors>
+    <Company>Bayer AG</Company>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="7.0.0" />
+  </ItemGroup>
+</Project>

@@ -57,7 +57,7 @@ namespace COLID.SearchService.WebApi.Controllers
         /// Return the document for a given identifier
         /// </summary>
         /// <param name="identifier">The identifier for which a document is searched for</param>
-        /// <param name="searchIndex">Specifies the index from which the document should be fetched</param>
+        /// <param name="updateIndex">Specifies the index from which the document should be fetched</param>
         /// <returns>A elastic search document</returns>
         [HttpGet]
         [Route("document")]
@@ -105,7 +105,6 @@ namespace COLID.SearchService.WebApi.Controllers
         /// Return the document for a given identifier
         /// </summary>
         /// <param name="identifiers">The identifier for which a document is searched for</param>
-        /// <param name="updateIndex">Specifies the index from which the document should be fetched</param>
         /// <returns>A elastic search document for schemaUi</returns>
         [HttpPost]
         [Route("getSchemaUIResource")]

@@ -24,8 +24,8 @@ namespace COLID.SearchService.Services.Interface
         /// <summary>
         /// Adds new document to the index.
         /// </summary>
-        /// <param name="document">Contents of the document.</param>
-        void IndexDocument(string document);
+        /// <param name="rawDocument">Contents of the document.</param>
+        void IndexDocument(string rawDocument);
 
         /// <summary>
         /// Return a document with the given id
@@ -42,7 +42,7 @@ namespace COLID.SearchService.Services.Interface
         /// <param name="identifier">The identifier for which a document is searched for</param>
         /// <param name="searchIndex">Specifies the index from which the document should be fetched</param>
         /// <returns>Return a document with the given id</returns>
-        object GetSchemaUIResource(DisplayTableAndColumn identifier, UpdateIndex searchIndex);
+        object GetSchemaUIResource(DisplayTableAndColumn identifiers, UpdateIndex updateIndex);
 
         /// <summary>
         /// Get the hashes for a list of identifiers. If no hash or identifier was found for the given ones, an empty hash value will be returned.
@@ -56,7 +56,7 @@ namespace COLID.SearchService.Services.Interface
         /// <param name="documents">Contents for each document</param>
         /// <param name="updateIndex">The index to which the document should be indexed.</param>
         /// <returns></returns>
-        object IndexDocuments(JObject[] documents, UpdateIndex updateIndex);
+        object IndexDocuments(IList<JObject> documents, UpdateIndex updateIndex);
 
         /// <summary>
         /// Deletes a single document with given ID from the index.

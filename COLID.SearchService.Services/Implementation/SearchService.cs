@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using COLID.Cache.Services;
+using COLID.Graph.Metadata.DataModels.FilterGroup;
 using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Repositories.Interface;
 using COLID.SearchService.Services.Interface;
@@ -12,10 +14,12 @@ namespace COLID.SearchService.Services.Implementation
     public class SearchService : ISearchService
     {
         private readonly IElasticSearchRepository _elasticSearchRepository;
+        private readonly ICacheService _cacheService;
 
-        public SearchService(IElasticSearchRepository elasticSearchRepository)
+        public SearchService(IElasticSearchRepository elasticSearchRepository, ICacheService cacheService)
         {
             _elasticSearchRepository = elasticSearchRepository;
+            _cacheService = cacheService;
         }
 
         /// <summary>
@@ -51,6 +55,14 @@ namespace COLID.SearchService.Services.Implementation
         public IList<string> PhraseSuggest(string searchText, SearchIndex searchIndex)
         {
             return _elasticSearchRepository.PhraseSuggest(searchText, searchIndex);
+        }
+
+        public IList<FilterGroup> GetFilterGroupAndProperties()
+        {
+            //Get Filter Groups and properties
+            var filterGrp = _cacheService.GetOrAdd($"AllFilterGroups", () => _elasticSearchRepository.GetFilterGroupAndProperties().Result);
+            
+            return filterGrp;
         }
     }
 }

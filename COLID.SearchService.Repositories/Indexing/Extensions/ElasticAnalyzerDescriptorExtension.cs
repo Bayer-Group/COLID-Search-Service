@@ -18,9 +18,6 @@ namespace COLID.SearchService.Repositories.Indexing.Extensions
                     continue;
                 }
 
-                // TODO SL: remove unused
-                IDictionary<TaxonomyResultDTO, IList<TaxonomyResultDTO>> dictionary = TaxonomyTransformer.BuildFlatDictionary(metadataProperty.Properties[Strings.Taxonomy]);
-
                 var taxonomyTextKey = metadataProperty.Key.GetPreparedAnalyzerName(ElasticAnalyzers.TaxonomyTextPrefix);
                 var taxonomyTextSearchKey = metadataProperty.Key.GetPreparedAnalyzerName(ElasticAnalyzers.TaxonomyTextSearchPrefix);
 

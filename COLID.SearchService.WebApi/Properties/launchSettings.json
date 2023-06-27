@@ -13,6 +13,8 @@
       "launchBrowser": true,
       "launchUrl": "swagger",
       "environmentVariables": {
+        "AWS_SECRET_ACCESS_KEY": "{value}",
+        "AWS_ACCESS_KEY_ID": "{value}",
         "ASPNETCORE_ENVIRONMENT": "Local"
       }
     },

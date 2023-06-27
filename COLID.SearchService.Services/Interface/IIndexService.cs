@@ -12,7 +12,7 @@ namespace COLID.SearchService.Services.Interface
         /// Creates a new index with automatic mapping creation based on the given metadata. After successfull
         /// creation the new index is set as default index in Data Marketplace.
         /// </summary>
-        /// <param name="metadata">Metadata of all fields which should be added to the index mapping.</param>
-        void CreateAndApplyNewIndex(Dictionary<string, JObject> metadata);
+        /// <param name="metadataObject">Metadata of all fields which should be added to the index mapping.</param>
+        void CreateAndApplyNewIndex(Dictionary<string, JObject> metadataObject);
     }
 }

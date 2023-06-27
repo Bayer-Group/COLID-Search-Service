@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using COLID.Graph.Metadata.DataModels.FilterGroup;
 using COLID.SearchService.DataModel.Search;
 using Newtonsoft.Json.Linq;
 
@@ -41,5 +42,11 @@ namespace COLID.SearchService.Services.Interface
         /// into an Elasticsearch JSON DSL.
         /// </remarks>
         object Search(SearchRequestDto searchRequest, bool delay = false);
+
+        /// <summary>
+        /// Get List of Filter Group
+        /// </summary>
+        /// <returns></returns>
+        IList<FilterGroup> GetFilterGroupAndProperties();
     }
 }

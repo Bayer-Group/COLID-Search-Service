@@ -77,7 +77,7 @@ namespace COLID.SearchService.Repositories.Indexing.Extensions
         private static IList<string> BuildAutoPhraseList(IDictionary<TaxonomyResultDTO, IList<TaxonomyResultDTO>> dictionary)
         {
             return dictionary
-                .Where(d => d.Key.Name.Contains(" "))
+                .Where(d => d.Key.Name.Contains(' ', System.StringComparison.Ordinal))
                 .Select(d => $"{d.Key.Name} => {PrepareNameWithUnderScore(d.Key)}")
                 .ToList();
         }
@@ -110,7 +110,7 @@ namespace COLID.SearchService.Repositories.Indexing.Extensions
 
         private static string PrepareNameWithUnderScore(TaxonomyResultDTO taxonomy)
         {
-            return taxonomy.Name.Replace(" ", "_");
+            return taxonomy.Name.Replace(" ", "_", System.StringComparison.Ordinal);
         }
     }
 }

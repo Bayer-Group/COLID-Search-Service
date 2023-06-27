@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
@@ -110,6 +110,18 @@ namespace COLID.SearchService.WebApi.Controllers
         public IActionResult PhraseSuggest([FromQuery(Name = "q")] string searchText, [FromQuery] SearchIndex searchIndex = SearchIndex.Published)
         {
             return Ok(_searchService.PhraseSuggest(searchText, searchIndex));
+        }
+
+        /// <summary>
+        /// Get Filter Group and Properties
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet]
+        [Route("filterGroup")]
+        public IActionResult FilterGroupAndProperties()
+        {
+            var result = _searchService.GetFilterGroupAndProperties();
+            return Ok(result);
         }
     }
 }

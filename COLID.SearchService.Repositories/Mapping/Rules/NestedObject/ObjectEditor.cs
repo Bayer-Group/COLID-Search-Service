@@ -17,7 +17,7 @@ namespace COLID.SearchService.Repositories.Mapping.Rules.NestedObject
             var currentOptionType = typeof(T).ToString();
             // Check if rule is applied in linked types.
             // If true, do not apply all nested fields of this property
-            if (currentOptionType.Equals(typeof(LinkedTypesOptions).ToString()))
+            if (currentOptionType.Equals(typeof(LinkedTypesOptions).ToString(), System.StringComparison.Ordinal))
             {
                 return o.Properties(pn => pn
                      .UriKeyword()
@@ -45,7 +45,7 @@ namespace COLID.SearchService.Repositories.Mapping.Rules.NestedObject
         /// </summary>
         /// <param name="nestedMetadata"></param>
         /// <returns> A list with all properties from each distribution endpoint type, whereby properties are unique in the list.</returns>
-        private IEnumerable<string> CollectProperties(IList<Metadata> nestedMetadata)
+        private static IEnumerable<string> CollectProperties(IList<Metadata> nestedMetadata)
         {
             var nestedProperties = new HashSet<string>();
             if (nestedMetadata != null)

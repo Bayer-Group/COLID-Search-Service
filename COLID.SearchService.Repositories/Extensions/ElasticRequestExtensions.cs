@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using COLID.SearchService.Repositories.Constants;
 using COLID.SearchService.Repositories.DataModel;
@@ -154,7 +154,7 @@ namespace COLID.SearchService.Repositories.Extensions
 
         public static SearchDescriptor<dynamic> AddHighlighting(this SearchDescriptor<dynamic> searchDescriptor)
         {
-            return searchDescriptor.Highlight(h => h.PreTags("<b>").PostTags("</b>").Fields(fs => fs.Field("*").NumberOfFragments(0)));
+            return searchDescriptor.Highlight(h => h.PreTags("<b>").PostTags("</b>").Fields(fs => fs.Field("*.outbound.value.ngrams").NumberOfFragments(0)));
         }
     }
 }

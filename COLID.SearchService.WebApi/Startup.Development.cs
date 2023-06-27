@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Builder;
+using COLID.Cache;
+using COLID.SearchService.WebApi.Settings;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace COLID.SearchService.WebApi
@@ -12,6 +14,7 @@ namespace COLID.SearchService.WebApi
         public void ConfigureDevelopmentServices(IServiceCollection services)
         {
             ConfigureServices(services);
+            services.AddCacheModule(Configuration, JsonSerializerSettings.GetSerializerSettings());
         }
 
         /// <summary>

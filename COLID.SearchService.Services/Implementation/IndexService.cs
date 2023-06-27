@@ -36,7 +36,7 @@ namespace COLID.SearchService.Services.Implementation
             _logger = logger;
             _configuration = configuration;
             _reindexingSwitch = _configuration.GetValue<bool>("ReindexSwitch");
-            _logger.LogInformation($"ReindexSwitch is allowed {_reindexingSwitch}", _reindexingSwitch);
+            _logger.LogInformation("ReindexSwitch is allowed {ReindexingSwitch}", _reindexingSwitch);
         }
 
         public IDictionary<string, Action<string>> OnTopicReceivers => new Dictionary<string, Action<string>>() {
@@ -52,12 +52,12 @@ namespace COLID.SearchService.Services.Implementation
             var lastPidUris = document["lastPidUris"];
             bool continueCheck = true;
             DateTime loopStart = DateTime.Now;
-            _logger.LogInformation($"Checking if the piduris have been received in new index at {loopStart} hours", loopStart);
+            _logger.LogInformation("Checking if the piduris have been received in new index at {LoopStart} hours", loopStart);
             int myCount = 0;
             while (continueCheck && DateTime.Now.Subtract(loopStart).Hours < 8)
             {
                 myCount++;
-                _logger.LogInformation($"The loop is running for {myCount} time", myCount);
+                _logger.LogInformation("The loop is running for {MyCount} time", myCount);
                 lastPidUris.ToList().ForEach(pidUri =>
                 {
                     try
@@ -65,7 +65,7 @@ namespace COLID.SearchService.Services.Implementation
                         var response = _elasticSearchRepository.GetDocument(HttpUtility.UrlEncode(pidUri.ToString()), UpdateIndex.Published);
                         if (response != null && continueCheck)
                         {
-                            _logger.LogInformation($"Document present {pidUri} in new index", pidUri);
+                            _logger.LogInformation("Document present {PidUri} in new index", pidUri);
 
                             continueCheck = false;
                         }
@@ -74,7 +74,7 @@ namespace COLID.SearchService.Services.Implementation
                     {
                         if (ex is EntityNotFoundException)
                         {
-                            _logger.LogWarning(ex, $"Document not recieved yet in new index for {pidUri} by message queue", pidUri.ToString());
+                            _logger.LogWarning(ex, "Document not recieved yet in new index for {PidUri} by message queue", pidUri.ToString());
                         }
                     }
                 });
@@ -82,7 +82,7 @@ namespace COLID.SearchService.Services.Implementation
                 await Task.Delay(600000);
 
             }
-            _logger.LogInformation($"Loop finished. Switching Search Aliases at {DateTime.Now} hours");
+            _logger.LogInformation("Loop finished. Switching Search Aliases at {Time} hours", DateTime.Now);
             SwitchAndDeleteOldIndex();
             }
         }
@@ -106,7 +106,7 @@ namespace COLID.SearchService.Services.Implementation
             }
             catch (System.Exception ex)
             {
-                _logger.LogError(ex, ex.Message);
+                _logger.LogError(ex, "{Message}", ex.Message);
 
                 try
                 {
@@ -117,7 +117,7 @@ namespace COLID.SearchService.Services.Implementation
                 }
                 catch (System.Exception innerEx)
                 {
-                    _logger.LogError(innerEx, innerEx.Message);
+                    _logger.LogError(innerEx, "{Message}", innerEx.Message);
                 }
 
             }
@@ -176,7 +176,7 @@ namespace COLID.SearchService.Services.Implementation
             }
             catch (System.Exception ex)
             {
-                _logger.LogError(ex, ex.Message);
+                _logger.LogError(ex, "{Message}", ex.Message);
 
                 try
                 {
@@ -187,7 +187,7 @@ namespace COLID.SearchService.Services.Implementation
                 }
                 catch (System.Exception innerEx)
                 {
-                    _logger.LogError(innerEx, innerEx.Message);
+                    _logger.LogError(innerEx, "{Message}", innerEx.Message);
                 }
 
                 throw;

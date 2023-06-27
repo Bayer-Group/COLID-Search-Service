@@ -1,13 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="COLID.Cache" Version="2.0.1077" />
     <PackageReference Include="COLID.Common" Version="2.0.145" />
     <PackageReference Include="COLID.Exception" Version="2.0.1063" />
-    <PackageReference Include="COLID.Graph" Version="2.0.1075" />
+    <PackageReference Include="COLID.Graph" Version="2.0.1077" />
     <PackageReference Include="COLID.Identity" Version="2.0.106" />
     <PackageReference Include="COLID.MessageQueue" Version="2.0.364" />
     <PackageReference Include="COLID.StatisticsLog" Version="2.0.1" />

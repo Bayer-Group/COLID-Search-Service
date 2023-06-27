@@ -6,7 +6,7 @@ namespace COLID.SearchService.WebApi
     /// <summary>
     /// Class containing Main method.
     /// </summary>
-    public class Program
+    public static class Program
     {
         /// <summary>
         /// The Main method.

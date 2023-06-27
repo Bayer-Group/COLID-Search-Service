@@ -32,8 +32,8 @@ namespace COLID.SearchService.Services.Implementation
         private readonly ILogger<DocumentService> _logger;
         // getting the service url ex: pid.bayer..
         private static readonly string _basePath = Path.GetFullPath("appsettings.json");
-        private static readonly string _filePath = _basePath.Substring(0, _basePath.Length - 16);
-        private static IConfigurationRoot _configuration = new ConfigurationBuilder()
+        private static readonly string _filePath = _basePath[..^16];
+        private static readonly IConfigurationRoot _configuration = new ConfigurationBuilder()
                      .SetBasePath(_filePath)
                     .AddJsonFile("appsettings.json")
                     .Build();
@@ -94,7 +94,7 @@ namespace COLID.SearchService.Services.Implementation
         /// </summary>
         /// <param name="identifier">Document with field <c>resoruceID</c>.</param>
         /// <param name="searchIndex">The index from which the document should be fetched.</param>
-        public object GetSchemaUIResource(DisplayTableAndColumn identifiers, UpdateIndex searchIndex)
+        public object GetSchemaUIResource(DisplayTableAndColumn identifiers, UpdateIndex updateIndex)
         {
             if (identifiers == null)
             {
@@ -108,7 +108,7 @@ namespace COLID.SearchService.Services.Implementation
                 var colresult = identifiers.columns.Select
                      (x => x.pidURI).AsEnumerable();
 
-                schemaUI.columns = _elasticSearchRepository.GetSchemaUIResource(colresult, searchIndex)?.ToList<object>();
+                schemaUI.columns = _elasticSearchRepository.GetSchemaUIResource(colresult, updateIndex)?.ToList<object>();
 
                 for (int i = 0; i < schemaUI.columns.Count; i++) 
                 {
@@ -127,26 +127,27 @@ namespace COLID.SearchService.Services.Implementation
 
                 var identifierList = identifiers.tables.Select(x => x.pidURI).AsEnumerable();
 
-                var tableDocuments = _elasticSearchRepository.GetSchemaUIResource(identifierList, searchIndex);
+                var tableDocuments = _elasticSearchRepository.GetSchemaUIResource(identifierList, updateIndex);
 
                 var columnIDs = identifiers.tables.Where(x => x.linkedTableFiled != null).SelectMany(x => x.linkedTableFiled).Select(y => y.pidURI).AsEnumerable();
 
-                var columnDocuments = _elasticSearchRepository.GetSchemaUIResource(columnIDs, searchIndex);
+                var columnDocuments = _elasticSearchRepository.GetSchemaUIResource(columnIDs, updateIndex);
 
                 foreach (var table in identifiers.tables)
                 {
                     try
                     {
-                        Table tableObj = new Table();
-
-                        tableObj.resourceDetail = tableDocuments.Where(x => GetPidUrl(x) == table.pidURI).FirstOrDefault();
-                        tableObj.linkedColumnResourceDetail = table.linkedTableFiled
+                        Table tableObj = new Table
+                        {
+                            resourceDetail = tableDocuments.Where(x => GetPidUrl(x) == table.pidURI).FirstOrDefault(),
+                            linkedColumnResourceDetail = table.linkedTableFiled
                             .Where(x => x != null && columnDocuments.Any(y => GetPidUrl(y) == x.pidURI))
                             .Select(col =>
                             {
                                 return columnDocuments.Where(x => GetPidUrl(x) == col.pidURI).FirstOrDefault();
 
-                            }).ToList<object>();
+                            }).ToList<object>()
+                        };
                         for (int i = 0; i < tableObj.linkedColumnResourceDetail.Count; i++)
                         {
                             var columnObject = table.linkedTableFiled.Where(x=>x.pidURI == GetPidUrl((JObject)tableObj.linkedColumnResourceDetail[i])).FirstOrDefault();
@@ -166,7 +167,7 @@ namespace COLID.SearchService.Services.Implementation
                     }
                     catch (System.Exception ex)
                     {
-                        _logger.LogInformation(ex, ex.Message);
+                        _logger.LogInformation(ex, "{Message}", ex.Message);
                         continue;
                     }
                 }
@@ -270,7 +271,7 @@ namespace COLID.SearchService.Services.Implementation
             return _elasticSearchRepository.IndexDocument(encodedId, jObjectDocument, GetIndexToUpdate(document));
         }
 
-        private UpdateIndex GetIndexToUpdate(IndexDocumentDto document)
+        private static UpdateIndex GetIndexToUpdate(IndexDocumentDto document)
         {
             return document.DocumentLifecycleStatus ==
                                 COLID.Graph.Metadata.Constants.Resource.ColidEntryLifecycleStatus.Draft
@@ -296,9 +297,9 @@ namespace COLID.SearchService.Services.Implementation
         }
 
         /// <summary>
-        /// <see cref="IDocumentService.IndexDocuments(JObject[])"/>
+        /// <see cref="IDocumentService.IndexDocuments(IList<JObject>)"/>
         /// </summary>
-        public object IndexDocuments(JObject[] documents, UpdateIndex updateIndex)
+        public object IndexDocuments(IList<JObject> documents, UpdateIndex updateIndex)
         {
             return _elasticSearchRepository.IndexDocuments(documents, updateIndex);
         }
