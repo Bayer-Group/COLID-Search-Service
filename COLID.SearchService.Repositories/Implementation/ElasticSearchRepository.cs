@@ -141,7 +141,7 @@ namespace COLID.SearchService.Repositories.Implementation
                     {                        
                         _logger.LogInformation("Environment: Local");
                         //To connect to AWS OpenSearch make sure your AccessKey, SecretKey and SessionToken is set below, also change bypassproxy to false in appsettingsLocal.Jeson
-                        var cred = new SessionAWSCredentials("ASIAYZLCAZR6JBGCN5H7", "eF8VcOpZfzUTj+hmxTw6GhoCkvTmN2AFXcjd/kmS", "FwoGZXIvYXdzEBwaDEcMU4YLkLkkd1izVSK9AcZq/JCFnMH0/S8r0r8ezTyFgm18NRooawhHiKJRQp6QUAKSNaeLjfN9lIvopcBdFjcIZJg+MlI98rKh0jC7pwt8HVIszmlq9HEneLrFCZrJZ8Dy9th6rgir4IJ3aAGW9ILu9xAffoxzn9/RSVpxUafbFpSQBgf+kee+7AXYlyRDHa3dUQnluBpa2u/Fzh/p0O2s739pI1hxYy0z+Kl71/XGZgyYBNpeuTM/C9FvUqaH48dXOHR9qYrRfxHpyyii5MGnBjItJd7S/BbyYkzCUYfpTzNfuL8HIAUa4hTlKId4HwpLw0ywpeXXhYyIM0xqvz8Z");
+                        var cred = new SessionAWSCredentials("Loremipsum", "Loremipsum", "Loremipsumdolorsitamet");
                         var httpConnection = new AwsSigV4HttpConnection(cred, region);                        
                         config = new ConnectionSettings(pool, httpConnection, sourceSerializer: JsonNetSerializer.Default);
                         config.ServerCertificateValidationCallback(CertificateValidations.AllowAll);
