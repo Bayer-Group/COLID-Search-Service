@@ -1,6 +1,6 @@
 ﻿using COLID.SearchService.Repositories.Mapping.Base;
 using COLID.SearchService.Repositories.Mapping.Constants;
-using Nest;
+using OpenSearch.Client;
 
 namespace COLID.SearchService.Repositories.Mapping.Rules.Range
 {

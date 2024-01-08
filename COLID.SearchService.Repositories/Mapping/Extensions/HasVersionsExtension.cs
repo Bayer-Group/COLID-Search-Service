@@ -1,5 +1,5 @@
 ﻿using COLID.SearchService.Repositories.Mapping.Constants;
-using Nest;
+using OpenSearch.Client;
 
 namespace COLID.SearchService.Repositories.Mapping.Extensions
 {

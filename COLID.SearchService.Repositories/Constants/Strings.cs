@@ -23,5 +23,8 @@
         public const string NestedMetadata = "nestedMetadata";
         public const string AllFilters = "all_Filters";
         public const string StatisticsStartDate = "2019-09-12";
+
+        public const string EnvironmentDocker = "Docker";
+        public const string EnvironmentLocal = "Local";        
     }
 }

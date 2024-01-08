@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
@@ -52,6 +52,19 @@ namespace COLID.SearchService.WebApi.Controllers
         {
             var delay = searchRequest.Delay;
             return Ok(_searchService.Search(searchRequest, delay));
+        }
+
+        /// <summary>
+        /// Searches the given term in opensearch, and returns clustered result using Carrot2.
+        /// </summary>
+        /// <param name="searchRequest">A search request in accordance to the DTO <see cref="COLID.SearchService.DataModel.Search.SearchRequestDto"/> for handling of search requests. </param>
+        /// <response code="200">Successfull request</response>
+        /// <response code="500">If an unexpected error occurs</response>
+        [HttpPost]
+        [Route("clusterSearchResult")]
+        public IActionResult GetClusteredSearchResult(SearchRequestDto searchRequest)
+        {            
+            return Ok(_searchService.GetClusteredSearchResult(searchRequest));
         }
 
         /// <summary>

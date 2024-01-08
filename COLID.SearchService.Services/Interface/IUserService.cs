@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using COLID.SearchService.DataModel.DTO;
-using COLID.SearchService.DataModel.Search;
-using Nest;
-using Newtonsoft.Json.Linq;
+using COLID.SearchService.DataModel.Statistics;
+using static COLID.SearchService.Services.Implementation.UserService;
 
 namespace COLID.SearchService.Services.Interface
 {
@@ -20,5 +19,7 @@ namespace COLID.SearchService.Services.Interface
         void WriteDmpAllSavedSearchFiltersCountToLogs(Dictionary<string, int> allSavedSearchFilters);
         void WriteFavoritesListCountToLogs(Dictionary<string, int> allFavoritesList);
         void WriteAllSubscriptionsCountToLogs(Dictionary<string, int> allSubscriptions);
+        HierarchicalData UserDepartmentsFlowView();
+
     }
 }

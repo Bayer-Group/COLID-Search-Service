@@ -1,6 +1,5 @@
 using System.IO.Compression;
 using System.Net.Http;
-using COLID.Common.Logger;
 using COLID.Exception;
 using COLID.Identity;
 using COLID.MessageQueue;
@@ -8,8 +7,6 @@ using COLID.SearchService.Repositories;
 using COLID.SearchService.Services;
 using COLID.StatisticsLog;
 using COLID.Swagger;
-using CorrelationId;
-using CorrelationId.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -47,10 +44,7 @@ namespace COLID.SearchService.WebApi
             {
                 options.Providers.Add<BrotliCompressionProvider>();
             });
-
-
-            services.AddDefaultCorrelationId();
-            services.AddCorrelationIdLogger();
+            
             services.AddCors();
             services.AddControllers().AddNewtonsoftJson();
             services.AddHttpContextAccessor();
@@ -79,8 +73,7 @@ namespace COLID.SearchService.WebApi
         /// <param name="app">The <see cref="IApplicationBuilder"/> object.</param>
         public void Configure(IApplicationBuilder app)
         {
-            app.UseResponseCompression();
-            app.UseCorrelationId();
+            app.UseResponseCompression();            
             app.UseExceptionMiddleware();
             app.UseHttpsRedirection();
 

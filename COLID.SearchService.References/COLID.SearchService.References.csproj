@@ -1,26 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="COLID.Cache" Version="2.0.1077" />
-    <PackageReference Include="COLID.Common" Version="2.0.145" />
-    <PackageReference Include="COLID.Exception" Version="2.0.1063" />
-    <PackageReference Include="COLID.Graph" Version="2.0.1077" />
-    <PackageReference Include="COLID.Identity" Version="2.0.106" />
-    <PackageReference Include="COLID.MessageQueue" Version="2.0.364" />
-    <PackageReference Include="COLID.StatisticsLog" Version="2.0.1" />
-    <PackageReference Include="COLID.Swagger" Version="2.0.101" />
+    <PackageReference Include="COLID.Cache" Version="2.0.1079" />
+    <PackageReference Include="COLID.Common" Version="2.0.149" />
+    <PackageReference Include="COLID.Exception" Version="2.0.1067" />
+    <PackageReference Include="COLID.Graph" Version="2.0.1079" />
+    <PackageReference Include="COLID.Identity" Version="2.0.1066" />
+    <PackageReference Include="COLID.MessageQueue" Version="2.0.367" />
+    <PackageReference Include="COLID.StatisticsLog" Version="2.0.340" />
+    <PackageReference Include="COLID.Swagger" Version="2.0.148" />
     <PackageReference Include="Microsoft.AspNetCore.Authorization" Version="3.1.9" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="3.1.9" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="3.1.9" />
-    <PackageReference Include="NEST" Version="7.8.1" />
-    <PackageReference Include="NEST.JsonNetSerializer" Version="7.8.1" />
-    <PackageReference Include="Elasticsearch.Net.Aws" Version="7.0.5" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="RabbitMQ.Client" Version="6.2.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="OpenSearch.Client" Version="1.4.0" />
+    <PackageReference Include="OpenSearch.Client.JsonNetSerializer" Version="1.4.0" />
+    <PackageReference Include="OpenSearch.Net.Auth.AwsSigV4" Version="1.4.0" />
     <PackageReference Include="AutoMapper" Version="10.1.1" />
   </ItemGroup>
 

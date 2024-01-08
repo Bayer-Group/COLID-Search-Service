@@ -11,6 +11,9 @@ namespace COLID.SearchService.DataModel.Search
         Published,
 
         [EnumMember(Value = "all")]
-        All
+        All,
+
+        [EnumMember(Value = "log")]
+        Log
     }
 }

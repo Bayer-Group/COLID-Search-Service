@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using COLID.SearchService.DataModel.Index;
 using Newtonsoft.Json.Linq;
 
 namespace COLID.SearchService.Services.Interface
@@ -14,5 +15,11 @@ namespace COLID.SearchService.Services.Interface
         /// </summary>
         /// <param name="metadataObject">Metadata of all fields which should be added to the index mapping.</param>
         void CreateAndApplyNewIndex(Dictionary<string, JObject> metadataObject);
+
+        /// <summary>
+        /// Check re-indexing progress ststus.
+        /// </summary>
+        /// <returns></returns>
+        IndexStaus GetIndexingStatus();
     }
 }

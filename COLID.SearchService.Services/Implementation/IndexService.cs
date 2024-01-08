@@ -6,10 +6,10 @@ using System.Web;
 using COLID.Exception.Models.Business;
 using COLID.MessageQueue.Configuration;
 using COLID.MessageQueue.Services;
+using COLID.SearchService.DataModel.Index;
 using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Repositories.Interface;
 using COLID.SearchService.Services.Interface;
-using Elasticsearch.Net;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -150,7 +150,7 @@ namespace COLID.SearchService.Services.Implementation
                     /// and therefore the index will be deleted on rollback
                     _elasticSearchRepository.IndexMetadata(JObject.FromObject(metadataObject));
                 }
-                catch (ElasticsearchClientException)
+                catch (System.Exception ex)
                 {
                     // It makes sense from a technical point of view to try the indexing of metadata again.
                     _elasticSearchRepository.IndexMetadata(JObject.FromObject(metadataObject));
@@ -192,6 +192,11 @@ namespace COLID.SearchService.Services.Implementation
 
                 throw;
             }
+        }
+
+        public IndexStaus GetIndexingStatus()
+        {
+            return _elasticSearchRepository.GetIndexingStatus();
         }
     }
 }

@@ -11,7 +11,7 @@ namespace COLID.SearchService.WebApi.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Resource.Index.All")]
+    [Authorize]
     public class IndexController : Controller
     {
         private readonly IIndexService _indexService;
@@ -27,10 +27,21 @@ namespace COLID.SearchService.WebApi.Controllers
         /// <param name="metadata">The metadata will define how the mapping of index.</param>
         [HttpPost]
         [Route("create")]
+        [Authorize(Roles = "Resource.Index.All")]
         public IActionResult Post([FromBody] Dictionary<string, JObject> metadata)
         {
             _indexService.CreateAndApplyNewIndex(metadata);
             return Ok();
+        }
+
+        /// <summary>
+        /// Check re-indexing progress status.
+        /// </summary>        
+        [HttpGet]
+        [Route("IndexingStatus")]
+        public IActionResult IndexingStatus()
+        {            
+            return Ok(_indexService.GetIndexingStatus());
         }
     }
 }

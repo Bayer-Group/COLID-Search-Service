@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using COLID.SearchService.Repositories.Constants;
-using Nest;
+using OpenSearch.Client;
 
 namespace COLID.SearchService.Repositories.Extensions
 {
