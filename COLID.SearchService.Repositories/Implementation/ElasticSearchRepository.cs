@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -22,6 +22,7 @@ using COLID.Identity.Extensions;
 using COLID.Identity.Services;
 using COLID.SearchService.DataModel.Configuration;
 using COLID.SearchService.DataModel.DTO;
+using COLID.SearchService.DataModel.Index;
 using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Repositories.Configuration;
 using COLID.SearchService.Repositories.Constants;
@@ -34,20 +35,18 @@ using COLID.SearchService.Repositories.Mapping.Constants;
 using COLID.SearchService.Repositories.Mapping.Extensions;
 using COLID.SearchService.Repositories.Mapping.Options;
 using COLID.StatisticsLog.Services;
-using CorrelationId.Abstractions;
-using Elasticsearch.Net;
-using Elasticsearch.Net.Aws;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-
 using Microsoft.Extensions.Options;
-using Nest;
-using Nest.JsonNetSerializer;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-
+using OpenSearch.Client;
+using OpenSearch.Client.JsonNetSerializer;
+using OpenSearch.Net;
+using OpenSearch.Net.Auth.AwsSigV4;
 
 namespace COLID.SearchService.Repositories.Implementation
 {
@@ -69,7 +68,8 @@ namespace COLID.SearchService.Repositories.Implementation
         private readonly string _documentUpdateAlias;
         private readonly string _metadataUpdateAlias;
         private readonly string _awsRegion;
-        private readonly IElasticClient _elasticClient;
+        private readonly string _logAlias;
+        private readonly IOpenSearchClient _elasticClient;
         private readonly IGeneralLogService _statiticsLogService;
         private readonly ILogger<ElasticSearchRepository> _logger;
         private readonly IHttpContextAccessor _httpContextAccessor;
@@ -82,7 +82,7 @@ namespace COLID.SearchService.Repositories.Implementation
         private readonly IHttpClientFactory _clientFactory;
         private readonly ITokenService<ColidRegistrationServiceTokenOptions> _registrationServiceTokenService;
         private readonly CancellationToken _cancellationToken;
-        private readonly ICorrelationContextAccessor _correlationContext;
+        private readonly IHostEnvironment _environment;
 #if DEBUG
         private readonly IList<string> _messages;
 #endif
@@ -97,7 +97,7 @@ namespace COLID.SearchService.Repositories.Implementation
             ICacheService cacheService,
             IHttpClientFactory clientFactory,
             ITokenService<ColidRegistrationServiceTokenOptions> registrationServiceTokenService,
-            ICorrelationContextAccessor correlationContext)
+            IHostEnvironment environment)
         {
             // Read and assing values from the appsettings for initalization
             var options = optionsAccessor.CurrentValue;
@@ -117,38 +117,59 @@ namespace COLID.SearchService.Repositories.Implementation
             _configuration = configuration;
             _serviceUrl = _configuration.GetValue<string>("ServiceUrl");
             _httpServiceUrl = _configuration.GetValue<string>("HttpServiceUrl");
+            _logAlias = _configuration.GetSection("ColidStatisticsLogOptions:DefaultDeptIndex").Get<string>();
             _cacheService = cacheService;
             _bypassProxy = _configuration.GetValue<bool>("BypassProxy");
             _clientFactory = clientFactory;
             _registrationServiceTokenService = registrationServiceTokenService;
-            _cancellationToken = httpContextAccessor?.HttpContext?.RequestAborted ?? CancellationToken.None;
-            _correlationContext = correlationContext;
+            _cancellationToken = httpContextAccessor?.HttpContext?.RequestAborted ?? CancellationToken.None;            
 #if DEBUG
             _messages = new List<string>();
 #endif
-
             _httpContextAccessor = httpContextAccessor;
-            // Setup config for Elasticsearch on AWS
-            AwsHttpConnection httpConnection;
+            _environment = environment;
 
-            // if accessKey and secretKey are provided via configuration, use them. otherwise try to
-            // determine by default AWS credentials resolution process see https://docs.aws.amazon.com/sdk-for-net/v3/developer-guide/net-dg-config-creds.html#creds-assign
-            if (!string.IsNullOrWhiteSpace(options.AccessKey) && !string.IsNullOrWhiteSpace(options.SecretKey))
-            {
-                var creds = new BasicAWSCredentials(options.AccessKey, options.SecretKey);
-                var region = RegionEndpoint.GetBySystemName(_awsRegion);
-                httpConnection = new AwsHttpConnection(creds, region);
-            }
-            else
-            {
-                httpConnection = new AwsHttpConnection(_awsRegion);
-            }
-
+            // Setup config for Opensearch on AWS            
+            var config = new ConnectionSettings();
             var pool = new SingleNodeConnectionPool(_baseUrl);
-            var config = new ConnectionSettings(pool, httpConnection, sourceSerializer: JsonNetSerializer.Default);
+            _logger.LogInformation("Region:" + _awsRegion);
+            var region = RegionEndpoint.GetBySystemName(_awsRegion);
+
+            switch (_environment.EnvironmentName)
+            {
+                case Constants.Strings.EnvironmentLocal:
+                    {                        
+                        _logger.LogInformation("Environment: Local");
+                        //To connect to AWS OpenSearch make sure your AccessKey, SecretKey and SessionToken is set below, also change bypassproxy to false in appsettingsLocal.Jeson
+                        var cred = new SessionAWSCredentials("ASIAYZLCAZR6JBGCN5H7", "eF8VcOpZfzUTj+hmxTw6GhoCkvTmN2AFXcjd/kmS", "FwoGZXIvYXdzEBwaDEcMU4YLkLkkd1izVSK9AcZq/JCFnMH0/S8r0r8ezTyFgm18NRooawhHiKJRQp6QUAKSNaeLjfN9lIvopcBdFjcIZJg+MlI98rKh0jC7pwt8HVIszmlq9HEneLrFCZrJZ8Dy9th6rgir4IJ3aAGW9ILu9xAffoxzn9/RSVpxUafbFpSQBgf+kee+7AXYlyRDHa3dUQnluBpa2u/Fzh/p0O2s739pI1hxYy0z+Kl71/XGZgyYBNpeuTM/C9FvUqaH48dXOHR9qYrRfxHpyyii5MGnBjItJd7S/BbyYkzCUYfpTzNfuL8HIAUa4hTlKId4HwpLw0ywpeXXhYyIM0xqvz8Z");
+                        var httpConnection = new AwsSigV4HttpConnection(cred, region);                        
+                        config = new ConnectionSettings(pool, httpConnection, sourceSerializer: JsonNetSerializer.Default);
+                        config.ServerCertificateValidationCallback(CertificateValidations.AllowAll);
+                        break;
+                    }
+                case Constants.Strings.EnvironmentDocker:
+                    {
+                        //To connect to Opensearch Docker
+                        _logger.LogInformation("Environment: Docker");
+                        config = new ConnectionSettings(pool, JsonNetSerializer.Default);
+                        config.BasicAuthentication("admin", "admin");
+                        config.ServerCertificateValidationCallback(CertificateValidations.AllowAll);
+                        break;
+                    }
+                default:
+                    {
+                        _logger.LogInformation("Environment: DEV/QA/Prod");
+                        var httpConnection = new AwsSigV4HttpConnection(region);
+                        config = new ConnectionSettings(pool, httpConnection, sourceSerializer: JsonNetSerializer.Default);
+                        //config = new ConnectionSettings(pool, JsonNetSerializer.Default);                        
+                        //config.ServerCertificateValidationCallback(CertificateValidations.AllowAll);
+                        break;
+                    }
+            }
+
             config.DefaultIndex(_documentSearchAlias);
             config.ThrowExceptions();
-            
+
             if (_bypassProxy)
                 config.DisableAutomaticProxyDetection();
 #if DEBUG
@@ -170,7 +191,7 @@ namespace COLID.SearchService.Repositories.Implementation
                 });
 #endif
             // Instantiate Elasticsearch Client
-            _elasticClient = new ElasticClient(config);
+            _elasticClient = new OpenSearchClient(config);
         }
 
         /// <summary>
@@ -294,7 +315,7 @@ namespace COLID.SearchService.Repositories.Implementation
                     gh => gh.Key,
                     gh => gh.Select(doc => doc.Source == null ? null : JObject.Parse(doc.Source.ToString()!)));
             }
-            catch (ElasticsearchClientException ex)
+            catch (OpenSearchClientException ex)
             {
                 _logger.LogError("Exception while trying to get Elasticsearch error reason: {Reason}, DebugInformation: {Information}", ex.ToString(), ex.DebugInformation);
                 return resultDict;
@@ -317,6 +338,10 @@ namespace COLID.SearchService.Repositories.Implementation
 
             // Execute search
             var searchAlias = GetSearchAlias(searchIndex);
+            if (searchIndex == SearchIndex.Log)
+            {
+                searchAlias = GetLogAlias();
+            }
             var lowLevelResponse = _elasticClient.LowLevel.Search<StringResponse>(searchAlias, jsonString);
 
             _logger.LogDebug("Retrieved response with debug_information={DebugInformation}", lowLevelResponse.DebugInformation);
@@ -1203,7 +1228,9 @@ namespace COLID.SearchService.Repositories.Implementation
             try
             {
                 var searchAlias = GetSearchAlias(searchIndex);
-                var output = _elasticClient.Search<dynamic>(s => s.Index(searchAlias).SuggestQuery(searchText));
+                var output = _elasticClient.Search<dynamic>(s => s.Index(searchAlias).
+                                        Suggest(ss => ss.Phrase(Strings.PhraseName, ph => ph
+                                                    .Text(searchText))));
                 return output.PhraseNames();
             }
             catch (System.Exception e)
@@ -1390,7 +1417,7 @@ namespace COLID.SearchService.Repositories.Implementation
 
                 return true;
             }
-            catch (ElasticsearchClientException)
+            catch (OpenSearchClientException)
             {
                 return false;
             }
@@ -1502,7 +1529,7 @@ namespace COLID.SearchService.Repositories.Implementation
             return !newCreatedIndexNames.IsNullOrEmpty() && newCreatedIndexNames.Any(t => t == indexName);
         }
 
-        private void LogElasticsearchResponse(IElasticsearchResponse response, string message)
+        private void LogElasticsearchResponse(IOpenSearchResponse response, string message)
         {
             var additionalInformation = new Dictionary<string, object>
             {
@@ -1533,6 +1560,11 @@ namespace COLID.SearchService.Repositories.Implementation
         private string GetUpdateAlias(UpdateIndex index)
         {
             return $"{_documentUpdateAlias}-{index}".ToLower();
+        }
+
+        private string GetLogAlias()
+        {
+            return $"{_logAlias}*".ToLower();
         }
 
         private List<UserBucketDTO> GetUniqueUsers(string index, DateTime date)
@@ -1750,7 +1782,7 @@ namespace COLID.SearchService.Repositories.Implementation
                     var accessToken = await _registrationServiceTokenService.GetAccessTokenForWebApiAsync();
                     //_logger.LogError("AccesToken :" + accessToken);
                     var response = await httpClient.SendRequestWithOptionsAsync(System.Net.Http.HttpMethod.Get, registrationServiceGetFilterGroupUrl,
-                        null, accessToken, _cancellationToken, _correlationContext.CorrelationContext);
+                        null, accessToken, _cancellationToken);
                     if (!response.IsSuccessStatusCode)
                     {
                         _logger.LogError("Error requesting Reg Service. Response Status Code {code} with token {token}", response.StatusCode, accessToken);
@@ -1812,5 +1844,27 @@ namespace COLID.SearchService.Repositories.Implementation
             return filterGrp;
             
         }
+
+        public IndexStaus GetIndexingStatus()
+        {
+            var curIndexingStatus = new IndexStaus();
+            try
+            {
+                var SearchIndicesName = _elasticClient.GetIndicesPointingToAlias(Names.Parse(GetSearchAlias(SearchIndex.Published))).FirstOrDefault();
+                var UpdateIndicesName = _elasticClient.GetIndicesPointingToAlias(Names.Parse(GetUpdateAlias(UpdateIndex.Published))).FirstOrDefault();
+
+                curIndexingStatus.InProgress = !(SearchIndicesName == UpdateIndicesName);
+                var curCountRequest = new CountRequest(Indices.Index(GetUpdateAlias(UpdateIndex.Published)));
+                curIndexingStatus.CurrentDocCount = _elasticClient.Count(curCountRequest).Count;
+                var totCountRequest = new CountRequest(Indices.Index(GetSearchAlias(SearchIndex.Published)));
+                curIndexingStatus.TotalDocCount = _elasticClient.Count(totCountRequest).Count;
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError("Error :" + (ex.InnerException == null ? ex.Message : ex.InnerException.Message));
+            }
+            return curIndexingStatus;
+        }
+
     }    
 }

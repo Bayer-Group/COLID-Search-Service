@@ -13,8 +13,9 @@
       "launchBrowser": true,
       "launchUrl": "swagger",
       "environmentVariables": {
-        "AWS_SECRET_ACCESS_KEY": "{value}",
         "AWS_ACCESS_KEY_ID": "{value}",
+        "AWS_SECRET_ACCESS_KEY": "{value}",
+        "AWS_SESSION_TOKEN": "{value}",
         "ASPNETCORE_ENVIRONMENT": "Local"
       }
     },
@@ -23,6 +24,9 @@
       "launchBrowser": true,
       "launchUrl": "swagger",
       "environmentVariables": {
+        "AWS_ACCESS_KEY_ID": "<Copy from Jumphost>",
+        "AWS_SECRET_ACCESS_KEY": "<Copy from Jumphost>",
+        "AWS_SESSION_TOKEN": "<Copy from Jumphost>",
         "ASPNETCORE_ENVIRONMENT": "OnPrem"
       }
     },

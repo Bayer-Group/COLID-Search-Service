@@ -1,5 +1,6 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using COLID.Graph.Metadata.DataModels.FilterGroup;
+using COLID.SearchService.DataModel.DTO;
 using COLID.SearchService.DataModel.Search;
 using Newtonsoft.Json.Linq;
 
@@ -48,5 +49,12 @@ namespace COLID.SearchService.Services.Interface
         /// </summary>
         /// <returns></returns>
         IList<FilterGroup> GetFilterGroupAndProperties();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="searchRequest">A search request in accordance to the DTO <see cref="COLID.SearchService.DataModel.Search.SearchRequestDto"/> for handling of search requests. </param>
+        /// <returns></returns>
+        Carrot2ResponseDTO GetClusteredSearchResult(SearchRequestDto searchRequest);
     }
 }

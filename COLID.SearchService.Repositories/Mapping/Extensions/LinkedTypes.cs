@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
 using COLID.SearchService.Repositories.Mapping.Constants;
 using COLID.SearchService.Repositories.Mapping.Options;
-using Nest;
 using Newtonsoft.Json.Linq;
+using OpenSearch.Client;
 
 namespace COLID.SearchService.Repositories.Mapping.Extensions
 {

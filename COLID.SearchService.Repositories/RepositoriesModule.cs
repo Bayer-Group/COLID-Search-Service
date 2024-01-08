@@ -1,4 +1,4 @@
-using COLID.Identity;
+﻿using COLID.Identity;
 using COLID.SearchService.DataModel.Configuration;
 using COLID.SearchService.Repositories.Configuration;
 using COLID.SearchService.Repositories.Implementation;
@@ -18,7 +18,7 @@ namespace COLID.SearchService.Repositories
         public static IServiceCollection AddRepositoriesModule(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<ElasticSearchOptions>(configuration.GetSection(nameof(ElasticSearchOptions)));
-            services.AddTransient<IElasticSearchRepository, ElasticSearchRepository>();
+            services.AddSingleton<IElasticSearchRepository, ElasticSearchRepository>();
             services.Configure<ColidRegistrationServiceTokenOptions>(configuration.GetSection("ColidRegistrationServiceTokenOptions"));
             return services;
         }

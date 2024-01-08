@@ -1,12 +1,12 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using COLID.Graph.Metadata.DataModels.FilterGroup;
 using COLID.Graph.Metadata.DataModels.Metadata;
 using COLID.SearchService.DataModel.DTO;
+using COLID.SearchService.DataModel.Index;
 using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Repositories.DataModel;
-using Nest;
 using Newtonsoft.Json.Linq;
 
 namespace COLID.SearchService.Repositories.Interface
@@ -194,5 +194,11 @@ namespace COLID.SearchService.Repositories.Interface
         /// </summary>
         /// <returns></returns>
         Task<IList<FilterGroup>> GetFilterGroupAndProperties();
+
+        /// <summary>
+        /// Check re-indexing progress ststus.
+        /// </summary>
+        /// <returns></returns>
+        IndexStaus GetIndexingStatus();
     }
 }

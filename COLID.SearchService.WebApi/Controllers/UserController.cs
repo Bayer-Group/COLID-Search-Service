@@ -75,6 +75,17 @@ namespace COLID.SearchService.WebApi.Controllers
             return Ok();
         }
 
+        /// <summary>
+        /// Fetches user departments aggregated and transforms them for Editor UI.
+        /// </summary>
+        /// <response code="200">Successfull request</response>
+        /// <response code="500">If an unexpected error occurs</response>
+        [HttpGet]
+        [Route("userDepartmentsFlowView")]
+        public IActionResult UserDepartmentsFlowView()
+        {
+            return Ok(_userService.UserDepartmentsFlowView());
+        }
 
     }
 }

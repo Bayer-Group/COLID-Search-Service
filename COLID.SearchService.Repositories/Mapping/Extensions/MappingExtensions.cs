@@ -5,7 +5,7 @@ using COLID.SearchService.Repositories.Constants;
 using COLID.SearchService.Repositories.Mapping.Base;
 using COLID.SearchService.Repositories.Mapping.Constants;
 using COLID.SearchService.Repositories.Mapping.Options;
-using Nest;
+using OpenSearch.Client;
 using Newtonsoft.Json.Linq;
 
 namespace COLID.SearchService.Repositories.Mapping.Extensions

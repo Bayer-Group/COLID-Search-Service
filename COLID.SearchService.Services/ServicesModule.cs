@@ -1,4 +1,4 @@
-using COLID.MessageQueue.Services;
+﻿using COLID.MessageQueue.Services;
 using COLID.SearchService.Services.Implementation;
 using COLID.SearchService.Services.Interface;
 using Microsoft.Extensions.Configuration;
@@ -21,7 +21,7 @@ namespace COLID.SearchService.Services
             services.AddTransient<ISearchService, Implementation.SearchService>();
             //services.AddSingleton<Implementation.SearchService>();
             //services.AddSingleton<ISearchService>(x => x.GetRequiredService<Implementation.SearchService>());
-
+            services.AddTransient<IRemoteCarrot2Service, RemoteCarrot2Service>();
             services.AddSingleton<DocumentService>();
             services.AddSingleton<IDocumentService>(x => x.GetRequiredService<DocumentService>());
             services.AddSingleton<IMessageQueueReceiver>(x => x.GetRequiredService<DocumentService>());

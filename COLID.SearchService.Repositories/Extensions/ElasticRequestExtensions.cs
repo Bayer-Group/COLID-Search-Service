@@ -1,9 +1,9 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using COLID.SearchService.Repositories.Constants;
 using COLID.SearchService.Repositories.DataModel;
-using Elasticsearch.Net;
-using Nest;
+using OpenSearch.Net;
+using OpenSearch.Client;
 
 namespace COLID.SearchService.Repositories.Extensions
 {

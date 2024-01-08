@@ -1,17 +1,20 @@
 ﻿using System.Collections.Generic;
-using COLID.SearchService.DataModel.Search;
 using COLID.SearchService.Repositories.Interface;
-using COLID.SearchService.Repositories.Mapping.Constants;
 using COLID.SearchService.Services.Interface;
-using COLID.MessageQueue.Constants;
-using Newtonsoft.Json.Linq;
 using System;
-using Nest;
-using Amazon.Runtime.Internal.Util;
 using Microsoft.Extensions.Logging;
-using COLID.SearchService.DataModel.DTO;
 using Microsoft.Extensions.Configuration;
 using COLID.SearchService.Repositories.Constants;
+using COLID.SearchService.DataModel.DTO;
+using COLID.SearchService.DataModel.Search;
+using OpenSearch.Client;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
+using System.Xml.Linq;
+using System.Linq;
+using Microsoft.Identity.Client;
+using VDS.RDF.Shacl.Validation;
+using COLID.SearchService.DataModel.Statistics;
 
 namespace COLID.SearchService.Services.Implementation
 {
@@ -64,5 +67,104 @@ namespace COLID.SearchService.Services.Implementation
         {
             _elasticSearchRepository.WriteSavedSearchFavoritesListSubscriptionsToLogs(allSubscriptions, "userSubscriptionsCount", "DMP_USER_SUBSCRIPTIONS");
         }
+
+        public HierarchicalData UserDepartmentsFlowView()
+        {
+            var departmentBuckets = new List<BucketDTO>();
+
+            string jsonString = @"
+            {
+              ""query"": {
+                ""bool"": {
+                  ""should"": [
+                    {
+                      ""match"": {
+                        ""fields.logEntry.Message"": ""PID_WELCOME_PAGE_OPENED""
+                      }
+                    },
+                    {
+                      ""match"": {
+                        ""fields.logEntry.Message"": ""DMP_WELCOME_PAGE_OPENED""
+                      }
+                    }
+                  ]
+                }
+              },
+              ""size"": 0, 
+                ""aggs"": {
+                ""departments"": {
+                  ""terms"": {
+                    ""field"": ""fields.logEntry.Department.keyword"",
+                    ""size"": 50000
+    
+                  }
+                }
+              }
+            }";
+
+            var elasticQueryResults = _elasticSearchRepository.ExecuteRawQuery(JObject.Parse(jsonString), SearchIndex.Log);
+
+            var aggregationsBuckets = elasticQueryResults["aggregations"]["departments"]["buckets"];
+
+            if (aggregationsBuckets.Any())
+            {
+                departmentBuckets = aggregationsBuckets.Select(bucket =>
+                {
+                    return new BucketDTO
+                    {
+                        Key = bucket["key"].ToString(),
+                        DocCount = bucket["doc_count"].Value<int>()
+                    };
+                }).ToList();
+            }
+
+            var nodes = new List<Node>();
+            var links = new List<Link>();
+            
+        foreach (var data in departmentBuckets)
+        {
+                var levelHierarchy = data.Key.Split('-').Length;
+                for (int i = levelHierarchy; i > 0; i--)
+                {
+                    var name = String.Join('-', data.Key.Split('-').Take(i));
+
+                    var lastNode = i == levelHierarchy;
+                    var node = nodes.FirstOrDefault(n => n.Name == name);
+                    if (node == null)
+                    {
+                        node = new Node { Name = name, Id = name };
+                        nodes.Add(node);
+                    }
+
+                    // If node is not the last elemnt in chain, we need to create a link
+                    if (!lastNode)   
+                    {
+                        var targetName = String.Join('-', data.Key.Split('-').Take(i+1));
+                        var existingLink = links.FirstOrDefault(link => link.Source == name && link.Target == targetName);
+                        if (existingLink != null)
+                        {
+                            existingLink.Value += (int)data.DocCount;
+                        } 
+                        else
+                        {
+                            links.Add(new Link { Source = name, Target = targetName, Value = (int)data.DocCount });
+                        }
+                    }
+                }
+        }
+
+            var nodeTotalValues = links.GroupBy(l => l.Source).ToDictionary(g => g.Key, g => g.Sum(v => v.Value));
+
+            foreach (var link in links)
+            {
+                nodeTotalValues.TryGetValue(link.Source, out var totalUsage);
+                link.Percentage = decimal.Divide(link.Value, totalUsage) * 100;
+            }
+
+            var hierarchicalData = new HierarchicalData { Nodes = nodes, Links = links };
+        
+            return hierarchicalData;
+        }
+         
     }
 }
