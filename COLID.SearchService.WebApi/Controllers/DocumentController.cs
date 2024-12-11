@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using COLID.Exception.Models.Business;
 using COLID.Graph.TripleStore.DataModels.Index;
 using COLID.Identity.Requirements;
@@ -54,6 +55,19 @@ namespace COLID.SearchService.WebApi.Controllers
         }
 
         /// <summary>
+        /// Indexes a raw document to the search index.
+        /// </summary>
+        /// <param name="rawDocument"></param>
+        /// <returns>ok.</returns>
+        [HttpPost]
+        [Route("indexRawDocument")]        
+        public async Task<IActionResult> IndexDocument([FromBody] string rawDocument)
+        {
+            await _documentService.IndexDocument(rawDocument);
+            return Ok();
+        }
+
+        /// <summary>
         /// Return the document for a given identifier
         /// </summary>
         /// <param name="identifier">The identifier for which a document is searched for</param>
@@ -85,6 +99,7 @@ namespace COLID.SearchService.WebApi.Controllers
         /// <returns>Elastic search documents</returns>
         [HttpPost]
         [Route("documentsByIds")]
+        [RequestSizeLimit(30_000_000)]
         public IActionResult GetDocumentsByIds([FromBody] IEnumerable<string> identifiers, [FromQuery] bool includeDraft = false)
         {
             try

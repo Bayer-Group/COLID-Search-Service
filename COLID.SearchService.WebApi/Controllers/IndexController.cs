@@ -43,5 +43,17 @@ namespace COLID.SearchService.WebApi.Controllers
         {            
             return Ok(_indexService.GetIndexingStatus());
         }
+
+        /// <summary>
+        /// Switch Index.
+        /// </summary>        
+        [HttpPost]
+        [Route("switchIndex")]
+        [Authorize(Roles = "Resource.Index.All")]
+        public IActionResult SwitchIndex()
+        {
+            _indexService.ReindexingSwitch();
+            return Ok();
+        }
     }
 }
