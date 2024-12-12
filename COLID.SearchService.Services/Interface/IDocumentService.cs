@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using COLID.Graph.TripleStore.DataModels.Index;
 using COLID.SearchService.DataModel.DTO;
 using COLID.SearchService.DataModel.Search;
@@ -19,13 +20,13 @@ namespace COLID.SearchService.Services.Interface
         /// <param name="document">Document to index.</param>
         /// <returns></returns>
         /// <remarks>Can be used to overwrite an existing document with the usage of an already existing ID.</remarks>
-        object IndexDocument(Uri id, IndexDocumentDto document);
+        Task IndexDocument(Uri id, IndexDocumentDto document);
 
         /// <summary>
         /// Adds new document to the index.
         /// </summary>
         /// <param name="rawDocument">Contents of the document.</param>
-        void IndexDocument(string rawDocument);
+        Task IndexDocument(string rawDocument);
 
         /// <summary>
         /// Return a document with the given id
@@ -62,7 +63,7 @@ namespace COLID.SearchService.Services.Interface
         /// Deletes a single document with given ID from the index.
         /// </summary>
         /// <param name="documentId">Raw document which should be deleted. Resource ID will be extracted.</param>
-        void DeleteDocument(Uri id, IndexDocumentDto document);
+        Task DeleteDocument(Uri id, IndexDocumentDto document);
 
         /// <summary>
         /// Adds new document with metadata to the metadata index and overrides the old metadata.
@@ -73,7 +74,7 @@ namespace COLID.SearchService.Services.Interface
 
         /// <summary>
         /// Returns a document with the current metadata in the metadata index.
-        /// </summary>
+        /// </summary>        
         /// <returns></returns>
         object GetMetadata();
 
@@ -84,5 +85,10 @@ namespace COLID.SearchService.Services.Interface
         /// </summary>
         /// <param name="identifiers">the ids to search for</param>
         public IDictionary<string, IEnumerable<JObject>> GetDocumentsByIds(IEnumerable<string> identifiers, bool includeDraft = false);
+
+        /// <summary>
+        /// Get document from SQS Queue and Index them
+        /// </summary>
+        public void ReindexDocumentsFromQueue();
     }
 }

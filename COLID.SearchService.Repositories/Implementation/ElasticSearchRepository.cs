@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Claims;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using Amazon;
 using Amazon.Runtime;
+using AngleSharp.Html.Dom;
 using COLID.Cache.Services;
 using COLID.Common.Enums;
 using COLID.Common.Extensions;
@@ -18,6 +20,7 @@ using COLID.Graph.Metadata.Constants;
 using COLID.Graph.Metadata.DataModels.FilterGroup;
 using COLID.Graph.Metadata.DataModels.Metadata;
 using COLID.Graph.TripleStore.Extensions;
+using COLID.Identity.Constants;
 using COLID.Identity.Extensions;
 using COLID.Identity.Services;
 using COLID.SearchService.DataModel.Configuration;
@@ -47,6 +50,7 @@ using OpenSearch.Client;
 using OpenSearch.Client.JsonNetSerializer;
 using OpenSearch.Net;
 using OpenSearch.Net.Auth.AwsSigV4;
+using StackExchange.Redis;
 
 namespace COLID.SearchService.Repositories.Implementation
 {
@@ -59,6 +63,7 @@ namespace COLID.SearchService.Repositories.Implementation
     {
         private const string _valueAccesor = ".outbound.value";
         private const string _uriAccesor = ".outbound.uri";
+        private const string _adminRole = "admin";
 
         private readonly Uri _baseUrl;
         private readonly string _resourceIndexPrefix;
@@ -69,7 +74,7 @@ namespace COLID.SearchService.Repositories.Implementation
         private readonly string _metadataUpdateAlias;
         private readonly string _awsRegion;
         private readonly string _logAlias;
-        private readonly IOpenSearchClient _elasticClient;
+        //private readonly IOpenSearchClient _elasticClient;
         private readonly IGeneralLogService _statiticsLogService;
         private readonly ILogger<ElasticSearchRepository> _logger;
         private readonly IHttpContextAccessor _httpContextAccessor;
@@ -83,9 +88,13 @@ namespace COLID.SearchService.Repositories.Implementation
         private readonly ITokenService<ColidRegistrationServiceTokenOptions> _registrationServiceTokenService;
         private readonly CancellationToken _cancellationToken;
         private readonly IHostEnvironment _environment;
+        private Dictionary<string, IOpenSearchClient> _openSearchClientCollection = new Dictionary<string, IOpenSearchClient>();
+        private static readonly object _openSearchClientDictLock = new object();
+
 #if DEBUG
         private readonly IList<string> _messages;
 #endif
+        private readonly IList<RoleMap> _roleMaps;
 
         public ElasticSearchRepository(
             IOptionsMonitor<ElasticSearchOptions> optionsAccessor,
@@ -129,21 +138,94 @@ namespace COLID.SearchService.Repositories.Implementation
             _httpContextAccessor = httpContextAccessor;
             _environment = environment;
 
+            _roleMaps = _configuration.GetSection("ElasticSearchOptions:RoleMap").Get<List<RoleMap>>();
+        }
+
+        private string GetUserEmail()
+        {
+            string curEmail = "unknown";
+            //Check whether invoked from Background IHostedService
+            if (_httpContextAccessor == null || _httpContextAccessor.HttpContext == null)
+            {
+                
+            }
+            else
+            {
+                var user = _httpContextAccessor.HttpContext.User;
+                var claims = ((ClaimsIdentity)user.Identity).Claims.ToList();
+
+                curEmail = claims
+                    .FirstOrDefault(c => c.Type == ClaimTypes.Upn)?
+                    .Value;
+            }
+            return curEmail;
+        }
+
+        private string GetOpenSearchUserFromRole()
+        {
+            string OpenSearchUser = "";
+
+            //Check whether invoked from Background IHostedService
+            if (_httpContextAccessor == null || _httpContextAccessor.HttpContext == null)
+            {
+                OpenSearchUser = _adminRole;
+            }
+            else
+            {
+                //Find roles
+                var user = _httpContextAccessor.HttpContext.User;
+                var claims = ((ClaimsIdentity)user.Identity).Claims.ToList();
+
+                var ad_roles = claims
+                    .Where(c => c.Type == ClaimTypes.Role)
+                    .Select(c => c.Value)
+                    .ToList();
+
+                //First Check any role has Admin rights
+                var adminRolesInConfig = _roleMaps.Where(s => s.OSROle == _adminRole).ToList();
+
+                foreach (RoleMap adminRoleInConfig in adminRolesInConfig)
+                {
+                    if (ad_roles.Contains(adminRoleInConfig.ADROle))
+                    {
+                        OpenSearchUser = _adminRole;
+                        break;
+                    }
+                }
+
+                //Continue Checking roles if admin roles not found
+                if (string.IsNullOrEmpty(OpenSearchUser))
+                {
+                    //Consider the first role in the ad_roles list
+                    var mappedOSUser = _roleMaps.Where(s => s.ADROle == ad_roles.FirstOrDefault()).FirstOrDefault();
+                    if (mappedOSUser == null)
+                    {
+                        OpenSearchUser = _roleMaps.Where(s => s.ADROle.ToLower() == "default").FirstOrDefault().OSROle;
+                    }
+                    else
+                    {
+                        OpenSearchUser = mappedOSUser.OSROle;
+                    }                    
+                }                
+            }
+            //_logger.LogInformation("OpenSearchUser: " + OpenSearchUser);
+            return OpenSearchUser;
+        }
+
+        private IOpenSearchClient CreateOpenSearchClientForUser(string user)
+        {
             // Setup config for Opensearch on AWS            
             var config = new ConnectionSettings();
-            var pool = new SingleNodeConnectionPool(_baseUrl);
-            _logger.LogInformation("Region:" + _awsRegion);
+            var pool = new SingleNodeConnectionPool(_baseUrl);            
             var region = RegionEndpoint.GetBySystemName(_awsRegion);
 
             switch (_environment.EnvironmentName)
             {
                 case Constants.Strings.EnvironmentLocal:
-                    {                        
-                        _logger.LogInformation("Environment: Local");
-                        //To connect to AWS OpenSearch make sure your AccessKey, SecretKey and SessionToken is set below, also change bypassproxy to false in appsettingsLocal.Jeson
-                        var cred = new SessionAWSCredentials("Loremipsum", "Loremipsum", "Loremipsumdolorsitamet");
-                        var httpConnection = new AwsSigV4HttpConnection(cred, region);                        
-                        config = new ConnectionSettings(pool, httpConnection, sourceSerializer: JsonNetSerializer.Default);
+                    {
+                        _logger.LogInformation("Environment: Local");                        
+                        config = new ConnectionSettings(pool, JsonNetSerializer.Default);
+                        config.BasicAuthentication(user, char.ToUpper(user[0]) + user.Substring(1) + "@123");
                         config.ServerCertificateValidationCallback(CertificateValidations.AllowAll);
                         break;
                     }
@@ -152,17 +234,20 @@ namespace COLID.SearchService.Repositories.Implementation
                         //To connect to Opensearch Docker
                         _logger.LogInformation("Environment: Docker");
                         config = new ConnectionSettings(pool, JsonNetSerializer.Default);
-                        config.BasicAuthentication("admin", "admin");
+                        if (user == "admin")
+                            config.BasicAuthentication(user, user);
+                        else
+                            config.BasicAuthentication(user, "Docker@123");                        
                         config.ServerCertificateValidationCallback(CertificateValidations.AllowAll);
                         break;
                     }
                 default:
                     {
                         _logger.LogInformation("Environment: DEV/QA/Prod");
-                        var httpConnection = new AwsSigV4HttpConnection(region);
-                        config = new ConnectionSettings(pool, httpConnection, sourceSerializer: JsonNetSerializer.Default);
-                        //config = new ConnectionSettings(pool, JsonNetSerializer.Default);                        
-                        //config.ServerCertificateValidationCallback(CertificateValidations.AllowAll);
+                        //var httpConnection = new AwsSigV4HttpConnection(region);
+                        //config = new ConnectionSettings(pool, httpConnection, sourceSerializer: JsonNetSerializer.Default);
+                        config = new ConnectionSettings(pool, JsonNetSerializer.Default);
+                        config.BasicAuthentication(user, char.ToUpper(user[0]) + user.Substring(1) + "@123");
                         break;
                     }
             }
@@ -179,7 +264,7 @@ namespace COLID.SearchService.Repositories.Implementation
                     if (request.RequestBodyInBytes != null)
                     {
                         var message = System.Text.Encoding.UTF8.GetString(request.RequestBodyInBytes);
-                        
+
                         _messages.Add($"Request send at {GetCurrentTimeStamp()}");
                         _messages.Add(message);
                     }
@@ -189,9 +274,33 @@ namespace COLID.SearchService.Repositories.Implementation
                     //    _messages.Add($"Response received at {GetCurrentTimeStamp()}");
                     //}
                 });
+
 #endif
             // Instantiate Elasticsearch Client
-            _elasticClient = new OpenSearchClient(config);
+            return new OpenSearchClient(config);
+        }                   
+
+        private IOpenSearchClient GetOpenSearchClientForUser( string knownUser = "")
+        {
+            string OpenSearchUser = knownUser;
+            if (string.IsNullOrEmpty(OpenSearchUser))
+            {
+                OpenSearchUser = GetOpenSearchUserFromRole();
+            }
+            
+            //Check and create if Opensearch client does not exits for the user
+            if (!_openSearchClientCollection.ContainsKey(OpenSearchUser))
+            {
+                lock(_openSearchClientDictLock)
+                {
+                    //Double Check and create if Opensearch client does not exits for the user
+                    if (!_openSearchClientCollection.ContainsKey(OpenSearchUser))
+                        _openSearchClientCollection.Add(OpenSearchUser, CreateOpenSearchClientForUser(OpenSearchUser));
+                }
+                
+            }
+                
+            return _openSearchClientCollection[OpenSearchUser];
         }
 
         /// <summary>
@@ -201,9 +310,10 @@ namespace COLID.SearchService.Repositories.Implementation
         /// <returns>Return a document with the given id</returns>
         public object GetDocument(string identifier, UpdateIndex updateIndex)
         {
+            var elasticClient = GetOpenSearchClientForUser();
             // TODO: Search alias, update alias?
             var updateAlias = GetUpdateAlias(updateIndex);
-            var response = _elasticClient.Get<dynamic>(identifier, doc => doc.Index(updateAlias));
+            var response = elasticClient.Get<dynamic>(identifier, doc => doc.Index(updateAlias));
 
             if (!response.Found)
             {
@@ -223,6 +333,7 @@ namespace COLID.SearchService.Repositories.Implementation
         /// <returns>Return a document with the given id</returns>
         public IList<JObject> GetSchemaUIResource(IEnumerable<string> identifiers, UpdateIndex updateIndex)
         {
+            var elasticClient = GetOpenSearchClientForUser();
             // TODO: Search alias, update alias?
             List<JObject> searchresult = new List<JObject>();
             try
@@ -232,7 +343,7 @@ namespace COLID.SearchService.Repositories.Implementation
                     .AsEnumerable();
 
                 var updateAlias = GetUpdateAlias(updateIndex);
-                var response = _elasticClient.MultiGet(m => m.GetMany<object>(documentIdentifiers, (op, id) => op
+                var response = elasticClient.MultiGet(m => m.GetMany<object>(documentIdentifiers, (op, id) => op
                                   .Index(updateAlias)
                                      .Source(s => s
                                         .Includes(x => x))));
@@ -267,6 +378,7 @@ namespace COLID.SearchService.Repositories.Implementation
 
         public IDictionary<string, IEnumerable<JObject>> GetDocuments(IEnumerable<string> identifiers, IEnumerable<string> fieldsToReturn, bool includeDraft = false)
         {
+            var elasticClient = GetOpenSearchClientForUser();
             IDictionary<string, IEnumerable<JObject>> resultDict = new Dictionary<string, IEnumerable<JObject>>();
             try
             {
@@ -276,7 +388,7 @@ namespace COLID.SearchService.Repositories.Implementation
 
                 if (includeDraft)
                 {
-                    response = _elasticClient.MultiGet(m => m
+                    response = elasticClient.MultiGet(m => m
                         .GetMany<object>(identifiers, (op, id) => op
                             .Index(searchAlias_Draft)
                             .Source(s => s
@@ -293,7 +405,7 @@ namespace COLID.SearchService.Repositories.Implementation
                 }
                 else
                 {
-                    response = _elasticClient.MultiGet(m => m
+                    response = elasticClient.MultiGet(m => m
                         .GetMany<object>(identifiers, (op, id) => op
                             .Index(searchAlias_Public)
                             .Source(s => s
@@ -329,6 +441,7 @@ namespace COLID.SearchService.Repositories.Implementation
         /// <exception cref="InvalidRequestException">Elasticsearch failed to parse the query.</exception>
         public JObject ExecuteRawQuery(JObject jsonQuery, SearchIndex searchIndex)
         {
+            var elasticClient = GetOpenSearchClientForUser();
             // Set the highlighting for hits in documents.
             var highlight = JObject.FromObject(new { pre_tags = new[] { "<strong>" }, post_tags = new[] { "</strong>" }, fields = JObject.Parse("{\"*\": {\"number_of_fragments\": 0} }") });
             jsonQuery.Add("highlight", highlight);
@@ -342,7 +455,7 @@ namespace COLID.SearchService.Repositories.Implementation
             {
                 searchAlias = GetLogAlias();
             }
-            var lowLevelResponse = _elasticClient.LowLevel.Search<StringResponse>(searchAlias, jsonString);
+            var lowLevelResponse = elasticClient.LowLevel.Search<StringResponse>(searchAlias, jsonString);
 
             _logger.LogDebug("Retrieved response with debug_information={DebugInformation}", lowLevelResponse.DebugInformation);
 
@@ -374,15 +487,16 @@ namespace COLID.SearchService.Repositories.Implementation
         /// </summary>
         public IList<MappingProperty> GetMappingProperties(SearchIndex searchIndex)
         {
+            var elasticClient = GetOpenSearchClientForUser();
             IList<MappingProperty> mappingProperties = null;
             var searchAlias = GetSearchAlias(searchIndex);
             CallWithTimeStampLog(() =>
             {
-                var indexName = _elasticClient.GetIndicesPointingToAlias(Names.Parse(searchAlias))?.FirstOrDefault();
+                var indexName = elasticClient.GetIndicesPointingToAlias(Names.Parse(searchAlias))?.FirstOrDefault();
 
                 if (indexName != null)
                 {
-                    var response = _elasticClient.Indices.GetMapping<object>(g => g.Index(indexName));
+                    var response = elasticClient.Indices.GetMapping<object>(g => g.Index(indexName));
                     var properties = response.Indices[indexName].Mappings.Properties;
                     mappingProperties = properties.Select(m => new MappingProperty(m.Key.Name, m.Value.Type)).ToList();
                     //var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromHours(12));
@@ -428,7 +542,7 @@ namespace COLID.SearchService.Repositories.Implementation
                 {
                     // Query to get buckets for aggregation
                     var aggregation = GetAggregationBuckets(aggregationFacets, searchIndex);
-                    var enrichedResponse = GetEnrichedResponseForFacets(aggregation);
+                    var enrichedResponse = GetEnrichedResponseForFacets(aggregation, null);
                     response.Aggregations = enrichedResponse;
                 }, "EnrichingFacetsAggregation");
 
@@ -450,14 +564,14 @@ namespace COLID.SearchService.Repositories.Implementation
         private AggregateDictionary GetAggregationBuckets(IEnumerable<Facet> aggregationFacets, SearchIndex searchIndex)
         {
             var searchAlias = GetSearchAlias(searchIndex);
-            var aggregationResponse = _elasticClient.Search<dynamic>(s => s.Index(searchAlias).AggregationQuery(aggregationFacets));
+            var aggregationResponse = GetOpenSearchClientForUser().Search<dynamic>(s => s.Index(searchAlias).AggregationQuery(aggregationFacets));
             return aggregationResponse.Aggregations;
         }
 
         private AggregateDictionary GetDateAggregationBuckets(IEnumerable<Facet> dateFacets, SearchIndex searchIndex)
         {
             var searchAlias = GetSearchAlias(searchIndex);
-            var dateAggregationsResponse = _elasticClient.Search<dynamic>(s => s.Index(searchAlias).DateAggregationQuery(dateFacets));
+            var dateAggregationsResponse = GetOpenSearchClientForUser().Search<dynamic>(s => s.Index(searchAlias).DateAggregationQuery(dateFacets));
             return dateAggregationsResponse.Aggregations;
         }
 
@@ -604,21 +718,25 @@ namespace COLID.SearchService.Repositories.Implementation
                 {
                     var firstLevelKey = splittedKey[0];
                     var secondLevelKey = splittedKey[1];
-                    var nestedMetadata = metadataCollection[firstLevelKey].NestedMetadata;
-                    foreach (var nestedProperty in nestedMetadata)
+                    if (metadataCollection.ContainsKey(firstLevelKey))
                     {
-                        var nestedEntry = nestedProperty.Properties.FirstOrDefault(x => string.Equals(x.Properties[Uris.HasPid], secondLevelKey));
-                        // Check if this propertey contains the key, if not check the next nested property in the list
-                        if (nestedEntry == null)
-                            continue;
-                        properties = nestedEntry.Properties;
-                        break;
+                        var nestedMetadata = metadataCollection[firstLevelKey].NestedMetadata;
+                        foreach (var nestedProperty in nestedMetadata)
+                        {
+                            var nestedEntry = nestedProperty.Properties.FirstOrDefault(x => string.Equals(x.Properties[Uris.HasPid], secondLevelKey));
+                            // Check if this property contains the key, if not check the next nested property in the list
+                            if (nestedEntry == null)
+                                continue;
+                            properties = nestedEntry.Properties;
+                            break;
+                        }
                     }
                 }
             }
             else
             {
-                properties = metadataCollection[key].Properties;
+                if(metadataCollection.ContainsKey(key))
+                    properties = metadataCollection[key].Properties;
             }
 
             return properties;
@@ -630,10 +748,11 @@ namespace COLID.SearchService.Repositories.Implementation
         /// <returns>Returns a list with all aggregateable Properties.</returns>
         private IList<Facet> GetAllFacets()
         {
+            string userRole = GetOpenSearchUserFromRole();
             var allFacetList = new List<Facet>();
             CallWithTimeStampLog(() =>
             {
-                allFacetList = _cacheService.GetOrAdd($"AllFacets", () =>
+                allFacetList = _cacheService.GetOrAdd($"AllFacets" + userRole, () =>
                 {
                     IList<Facet> facetList = null;
                     var metadataCollection = GetMetadataCollection();
@@ -701,7 +820,7 @@ namespace COLID.SearchService.Repositories.Implementation
         /// <see cref="IElasticSearchRepository.IndexDocument(string, JObject)"/>
         /// New document will be written to the update alias.
         /// </summary>
-        public object IndexDocument(string id, JObject documentToIndex, UpdateIndex updateIndex)
+        public async Task IndexDocument(string id, JObject documentToIndex, UpdateIndex updateIndex)
         {
             var updateAlias = GetUpdateAlias(updateIndex);
 #if DEBUG
@@ -709,16 +828,16 @@ namespace COLID.SearchService.Repositories.Implementation
 #endif
             //_logger.LogInformation("Indexing document with:\nid={id}\ncontent={document}\nto index={documentUpdateAlias}\nwith type={defaultType}", id, documentToIndex.ToString(), updateAlias, _defaultType);
 
-            var indexedDocument = _elasticClient.Index(documentToIndex, idx => idx.Index(updateAlias)
-                                                                               .Id(id));
-            return indexedDocument;
+            var indexedDocument = await Task.Run(() => GetOpenSearchClientForUser(_adminRole).Index(documentToIndex, idx => idx.Index(updateAlias).Id(id)));
+            
+            
         }
 
         /// <summary>
         /// <see cref="IElasticSearchRepository.IndexDocuments(IList<JObject>)"/>
         /// New documents will be written to the update alias.
         /// </summary>
-        public object IndexDocuments(IList<JObject> documents, UpdateIndex updateIndex)
+        public async Task IndexDocuments(IList<JObject> documents, UpdateIndex updateIndex)
         {
             var descriptor = new BulkDescriptor();
             var index = GetUpdateAlias(updateIndex);
@@ -732,7 +851,7 @@ namespace COLID.SearchService.Repositories.Implementation
                                                      );
             }
 
-            return _elasticClient.Bulk(descriptor);
+            GetOpenSearchClientForUser(_adminRole).Bulk(descriptor);
         }
 
         private static TimeSpan GetCurrentTimeStamp()
@@ -748,67 +867,77 @@ namespace COLID.SearchService.Repositories.Implementation
             // Tranform search term with special logic
             searchRequest.SearchTerm = ApplySearchTermTransformations(searchRequest.SearchTerm);
             var result = new SearchResultDTO();
+            
+            try
+            {
 #if DEBUG
-            _messages.Clear();
+                _messages.Clear();
 #endif
 
-            var receivedTime = GetCurrentTimeStamp();
+                var receivedTime = GetCurrentTimeStamp();
 
-            var originalSearchTerm = searchRequest.SearchTerm;
-            if (delay)
-            {
-                Thread.Sleep(3500);
-            }
-            ISearchResponse<dynamic> esSearchRequest = null;
-            // Excute search with DMP search logic
-            CallWithTimeStampLog(() => esSearchRequest = BuildSearchObject(searchRequest), nameof(BuildSearchObject));
+                var originalSearchTerm = searchRequest.SearchTerm;
+                if (delay)
+                {
+                    Thread.Sleep(3500);
+                }
+                ISearchResponse<dynamic> esSearchRequest = null;
+                // Excute search with DMP search logic
+                CallWithTimeStampLog(() => esSearchRequest = BuildSearchObject(searchRequest), nameof(BuildSearchObject));
 
-            CallWithTimeStampLog(() =>
-           {
-               // auto-correction part, only if allowed
-               if (esSearchRequest.IsValid && !searchRequest.NoAutoCorrect && searchRequest.EnableSuggest)
-               {
-                   // In case of no result try to fetch result for suggested term.
-                   var totalHits = esSearchRequest.Hits.Count;
-                   if (totalHits <= 0)
-                   {
-                       string phraseSuggest = esSearchRequest.PhraseNames().FirstOrDefault();
+                CallWithTimeStampLog(() =>
+                {
+                    // auto-correction part, only if allowed
+                    if (esSearchRequest.IsValid && !searchRequest.NoAutoCorrect && searchRequest.EnableSuggest)
+                    {
+                        // In case of no result try to fetch result for suggested term.
+                        var totalHits = esSearchRequest.Hits.Count;
+                        if (totalHits <= 0)
+                        {
+                            string phraseSuggest = esSearchRequest.PhraseNames().FirstOrDefault();
 
-                       if (!string.IsNullOrEmpty(phraseSuggest))
-                       {
-                           // if phrase suggest is available, search for this again
-                           searchRequest.SearchTerm = phraseSuggest;
-                           esSearchRequest = BuildSearchObject(searchRequest);
+                            if (!string.IsNullOrEmpty(phraseSuggest))
+                            {
+                                // if phrase suggest is available, search for this again
+                                searchRequest.SearchTerm = phraseSuggest;
+                                esSearchRequest = BuildSearchObject(searchRequest);
 
-                           result.OriginalSearchTerm = originalSearchTerm;
-                           result.SuggestedSearchTerm = phraseSuggest;
-                       }
-                   }
-               }
-           }, "AutoCorrectionAndSuggestion");
+                                result.OriginalSearchTerm = originalSearchTerm;
+                                result.SuggestedSearchTerm = phraseSuggest;
+                            }
+                        }
+                    }
+                }, "AutoCorrectionAndSuggestion");
 
-            // Query to get metadata for facets and enrich elasticsearch standard response
-            if (searchRequest.EnableAggregation)
-            {
-                CallWithTimeStampLog(() => { EnrichElasticsearchResponseForAggregationBuckets(esSearchRequest, searchRequest, ref result); }, "Enriching");
-            }
+                // Query to get metadata for facets and enrich elasticsearch standard response
+                if (searchRequest.EnableAggregation)
+                {
+                    CallWithTimeStampLog(() => { EnrichElasticsearchResponseForAggregationBuckets(esSearchRequest, searchRequest, ref result); }, "Enriching");
+                }
 
-            result.Suggest = esSearchRequest.Suggest;
-            result.Hits = new HitDTO
-            {
-                Hits = esSearchRequest.Hits,
-                Total = esSearchRequest.HitsMetadata != null ? esSearchRequest.HitsMetadata.Total.Value : 0,
-                MaxScore = esSearchRequest.HitsMetadata.MaxScore != null ? esSearchRequest.HitsMetadata.MaxScore.Value : 0
-            };
+                result.Suggest = esSearchRequest.Suggest;
+                result.Hits = new HitDTO
+                {
+                    Hits = esSearchRequest.Hits,
+                    Total = esSearchRequest.HitsMetadata != null ? esSearchRequest.HitsMetadata.Total.Value : 0,
+                    MaxScore = esSearchRequest.HitsMetadata.MaxScore != null ? esSearchRequest.HitsMetadata.MaxScore.Value : 0
+                };
 
-            CallWithTimeStampLog(() => { WriteLogsAfterSearch(esSearchRequest, searchRequest); } , "WriteLogsAfterSearch");
+                CallWithTimeStampLog(() => { WriteLogsAfterSearch(esSearchRequest, searchRequest); }, "WriteLogsAfterSearch");
 #if DEBUG
-            _messages.Insert(0, $"Api call made from client at {searchRequest.ApiCallTime} ");
-            _messages.Insert(1, $"Api call received by server at {receivedTime} ");
-            _messages.Add($"Respsone send from server at {GetCurrentTimeStamp()}");
-            result.Messages = _messages;
+                _messages.Insert(0, $"Api call made from client at {searchRequest.ApiCallTime} ");
+                _messages.Insert(1, $"Api call received by server at {receivedTime} ");
+                _messages.Add($"Response send from server at {GetCurrentTimeStamp()}");
+                result.Messages = _messages;
 #endif
-            result.Took = esSearchRequest.Took;
+                result.Took = esSearchRequest.Took;
+            }
+            catch(System.Exception ex)
+            {
+                _logger.LogError("Exception while user {user} trying to search: {Message}", GetUserEmail(), ex.Message);
+                throw;
+            }
+
             return result;
         }
 
@@ -1084,7 +1213,7 @@ namespace COLID.SearchService.Repositories.Implementation
 
             CallWithTimeStampLog(() =>
                         {
-                            searchResult = _elasticClient.Search<dynamic>(s =>
+                            searchResult = GetOpenSearchClientForUser().Search<dynamic>(s =>
                 {
                     s
                     .Index(GetSearchAlias(searchRequest))
@@ -1212,7 +1341,7 @@ namespace COLID.SearchService.Repositories.Implementation
             try
             {
                 var searchAlias = GetSearchAlias(searchIndex);
-                var output = _elasticClient.Search<dynamic>(s => s.Index(searchAlias).SuggestAggregationQuery(searchText));
+                var output = GetOpenSearchClientForUser().Search<dynamic>(s => s.Index(searchAlias).SuggestAggregationQuery(searchText));
 
                 return output.Suggestions();
             }
@@ -1228,7 +1357,7 @@ namespace COLID.SearchService.Repositories.Implementation
             try
             {
                 var searchAlias = GetSearchAlias(searchIndex);
-                var output = _elasticClient.Search<dynamic>(s => s.Index(searchAlias).
+                var output = GetOpenSearchClientForUser().Search<dynamic>(s => s.Index(searchAlias).
                                         Suggest(ss => ss.Phrase(Strings.PhraseName, ph => ph
                                                     .Text(searchText))));
                 return output.PhraseNames();
@@ -1247,14 +1376,14 @@ namespace COLID.SearchService.Repositories.Implementation
         /// </summary>
         /// <param name="id"></param>
         /// <returns></returns>
-        public object DeleteDocument(string id, UpdateIndex updateIndex)
+        public async Task DeleteDocument(string id, UpdateIndex updateIndex)
         {
             var updateAlias = GetUpdateAlias(updateIndex);
 
             _logger.LogInformation("Deleting document with id={id} from index={documentUpdateAlias} with type={defaultType}", id, updateAlias, _defaultType);
 
-            var response = _elasticClient.Delete<StringResponse>(id, doc => doc.Index(updateAlias));
-            return response;
+            var response = await Task.Run(() => GetOpenSearchClientForUser(_adminRole).Delete<StringResponse>(id, doc => doc.Index(updateAlias)));
+            
         }
 
         /// <summary>
@@ -1272,7 +1401,7 @@ namespace COLID.SearchService.Repositories.Implementation
 #endif
             // Usage of the same document id will ensure that only one document is stored in index.
             // Document will be always overwritten with latest metadata.
-            var indexedDocument = _elasticClient.Index(metadata, idx => idx.Index(_metadataUpdateAlias).Id("1"));
+            var indexedDocument = GetOpenSearchClientForUser(_adminRole).Index(metadata, idx => idx.Index(_metadataUpdateAlias).Id("1"));
 
             LogElasticsearchResponse(indexedDocument, "Index metadata");
 
@@ -1285,16 +1414,18 @@ namespace COLID.SearchService.Repositories.Implementation
         /// <returns>Collection of current metadata for DMP.</returns>
         public MetadataCollection GetMetadataCollection()
         {
-            var metadata = _cacheService.GetOrAdd($"AllMetadata", () => _elasticClient.Get<MetadataCollection>("1", req => req.Index(_metadataSearchAlias)).Source);
+            string userRole = GetOpenSearchUserFromRole();
+            var osClient = GetOpenSearchClientForUser();
+            //var metadata = _cacheService.GetOrAdd($"AllMetadata" + userRole, () => osClient.Get<MetadataCollection>("1", req => req.Index(_metadataSearchAlias)).Source);
            // Index with metadata holds only one document with the _id 1, which represents the current metadata.
-           //var metadata = _elasticClient.Get<MetadataCollection>("1", req => req.Index(_metadataSearchAlias)).Source;
+           var metadata = osClient.Get<MetadataCollection>("1", req => req.Index(_metadataSearchAlias)).Source;
 
             return metadata;
         }
 
         public object GetResourceTypes()
         {
-            var resourcetypes = _elasticClient.Search<dynamic>(s => s
+            var resourcetypes = GetOpenSearchClientForUser().Search<dynamic>(s => s
                 .Index(_metadataSearchAlias)
                 .Query(q => q
                     .Term(t => t
@@ -1317,13 +1448,14 @@ namespace COLID.SearchService.Repositories.Implementation
         /// </summary>
         public string CreateMetadataIndex(IList<Action> rollbackActions, out IEnumerable<string> oldIndexNames)
         {
+            var elasticClient = GetOpenSearchClientForUser(_adminRole);
             if (rollbackActions == null)
             {
                 throw new ArgumentNullException(nameof(rollbackActions));
             }
 
             var newIndexName = _metadataIndexPrefix + DateTime.Now.ToString("yyyy-MM-dd_HH.mm.ss");
-            var indexResponse = _elasticClient.Indices.Create(newIndexName);
+            var indexResponse = elasticClient.Indices.Create(newIndexName);
 
             // Function to delete new index, if something goes wrong in the further process
             rollbackActions.Add(() => DeleteIndex(newIndexName));
@@ -1331,14 +1463,14 @@ namespace COLID.SearchService.Repositories.Implementation
             LogElasticsearchResponse(indexResponse, "Create metadata index");
 
             // Is necessary for cleaning up after successful creation of the index
-            oldIndexNames = _elasticClient.GetIndicesPointingToAlias(Names.Parse(_metadataUpdateAlias));
+            oldIndexNames = elasticClient.GetIndicesPointingToAlias(Names.Parse(_metadataUpdateAlias));
 
             // Delete all old and add new index name
             UpdateAlias(_metadataUpdateAlias, newIndexName, oldIndexNames, rollbackActions);
 
             var disabledMapping = new JObject { { "enabled", false } };
 
-            var indicesPutMappingResponse = _elasticClient.LowLevel.Indices.PutMapping<StringResponse>(_metadataUpdateAlias, disabledMapping.ToString());
+            var indicesPutMappingResponse = elasticClient.LowLevel.Indices.PutMapping<StringResponse>(_metadataUpdateAlias, disabledMapping.ToString());
 
             return newIndexName;
         }
@@ -1348,6 +1480,7 @@ namespace COLID.SearchService.Repositories.Implementation
         /// </summary>
         public string CreateDocumentIndex(Dictionary<string, JObject> metadataObject, UpdateIndex updateIndex, IList<Action> rollbackActions, out IEnumerable<string> oldIndexNames)
         {
+            var elasticClient = GetOpenSearchClientForUser(_adminRole);
             if (rollbackActions == null)
             {
                 throw new ArgumentNullException(nameof(rollbackActions));
@@ -1359,7 +1492,7 @@ namespace COLID.SearchService.Repositories.Implementation
 
             // Configures index settings with analyzers for text analysis on DMP search index. Custom analyzers will be configured
             // using built-in and custom token filter. Custom token filter will be also created.
-            var indexResponse = _elasticClient.Indices.Create(newIndexName, c => c
+            var indexResponse = elasticClient.Indices.Create(newIndexName, c => c
 .Settings(s => s
 .NumberOfReplicas(0)
 .NumberOfShards(1)
@@ -1402,7 +1535,7 @@ namespace COLID.SearchService.Repositories.Implementation
             var updateAlias = GetUpdateAlias(updateIndex);
 
             // Delete all old and add new index name
-            oldIndexNames = _elasticClient.GetIndicesPointingToAlias(Names.Parse(updateAlias)).ToList();
+            oldIndexNames = elasticClient.GetIndicesPointingToAlias(Names.Parse(updateAlias)).ToList();
 
             UpdateAlias(updateAlias, newIndexName, oldIndexNames, rollbackActions);
 
@@ -1413,7 +1546,7 @@ namespace COLID.SearchService.Repositories.Implementation
         {
             try
             {
-                _elasticClient.Indices.Delete(index);
+                GetOpenSearchClientForUser(_adminRole).Indices.Delete(index);
 
                 return true;
             }
@@ -1429,7 +1562,7 @@ namespace COLID.SearchService.Repositories.Implementation
         public object CreateDocumentMapping(Dictionary<string, JObject> metadataObject, UpdateIndex updateIndex)
         {
             var updateAlias = GetUpdateAlias(updateIndex);
-            var result = _elasticClient.Map<dynamic>(map => map
+            var result = GetOpenSearchClientForUser(_adminRole).Map<dynamic>(map => map
                     .Index(updateAlias)
                     .Dynamic(false)
                     .Properties(ps => ps
@@ -1449,13 +1582,14 @@ namespace COLID.SearchService.Repositories.Implementation
         /// </summary>
         public void UpdateMetadataSearchAlias(IList<Action> rollbackActions)
         {
+            var elasticClient = GetOpenSearchClientForUser(_adminRole);
             if (rollbackActions == null)
             {
                 throw new ArgumentNullException(nameof(rollbackActions));
             }
 
-            var newIndexName = _elasticClient.GetIndicesPointingToAlias(Names.Parse(_metadataUpdateAlias))?.FirstOrDefault();
-            var oldIndexNames = _elasticClient.GetIndicesPointingToAlias(Names.Parse(_metadataSearchAlias)).ToList();
+            var newIndexName = elasticClient.GetIndicesPointingToAlias(Names.Parse(_metadataUpdateAlias))?.FirstOrDefault();
+            var oldIndexNames = elasticClient.GetIndicesPointingToAlias(Names.Parse(_metadataSearchAlias)).ToList();
 
             // Delete all old and add new index name
             UpdateAlias(_metadataSearchAlias, newIndexName, oldIndexNames, rollbackActions);
@@ -1466,18 +1600,19 @@ namespace COLID.SearchService.Repositories.Implementation
         /// </summary>
         public void UpdateDocumentSearchAlias(IList<Action> rollbackActions, UpdateIndex updateIndex, SearchIndex searchIndex)
         {
+            var elasticClient = GetOpenSearchClientForUser(_adminRole);
             if (rollbackActions == null)
             {
                 throw new ArgumentNullException(nameof(rollbackActions));
             }
 
             var updateAlias = GetUpdateAlias(updateIndex);
-            var newIndexName = _elasticClient.GetIndicesPointingToAlias(Names.Parse(updateAlias))?.FirstOrDefault();
+            var newIndexName = elasticClient.GetIndicesPointingToAlias(Names.Parse(updateAlias))?.FirstOrDefault();
 
             var searchAlias = GetSearchAlias(searchIndex);
             var searchAllAlias = GetSearchAlias(SearchIndex.All);
 
-            var oldIndexNames = _elasticClient.GetIndicesPointingToAlias(Names.Parse(searchAlias)).ToList();
+            var oldIndexNames = elasticClient.GetIndicesPointingToAlias(Names.Parse(searchAlias)).ToList();
 
             // Delete all old and add new index name
             UpdateAlias(searchAllAlias, newIndexName, oldIndexNames, rollbackActions);
@@ -1486,7 +1621,8 @@ namespace COLID.SearchService.Repositories.Implementation
 
         private void UpdateAlias(string alias, string newIndexName, IEnumerable<string> oldIndexNames, IList<Action> rollbackActions)
         {
-            var aliasResponse = _elasticClient.Indices.BulkAlias(a =>
+            var elasticClient = GetOpenSearchClientForUser(_adminRole);
+            var aliasResponse = elasticClient.Indices.BulkAlias(a =>
             {
                 if (!string.IsNullOrWhiteSpace(newIndexName))
                 {
@@ -1504,7 +1640,7 @@ namespace COLID.SearchService.Repositories.Implementation
                 return a;
             });
 
-            var newIndexNames = _elasticClient.GetIndicesPointingToAlias(Names.Parse(alias)).ToList();
+            var newIndexNames = elasticClient.GetIndicesPointingToAlias(Names.Parse(alias)).ToList();
 
             rollbackActions.Add(() => UpdateAlias(alias, oldIndexNames.FirstOrDefault(), newIndexNames, new List<Action>()));
 
@@ -1524,7 +1660,7 @@ namespace COLID.SearchService.Repositories.Implementation
         /// <returns>true, if the pointing is correct, otherwise false</returns>
         private bool CheckUpdatedAlias(string alias, string indexName)
         {
-            var newCreatedIndexNames = _elasticClient.GetIndicesPointingToAlias(Names.Parse(alias));
+            var newCreatedIndexNames = GetOpenSearchClientForUser(_adminRole).GetIndicesPointingToAlias(Names.Parse(alias));
 
             return !newCreatedIndexNames.IsNullOrEmpty() && newCreatedIndexNames.Any(t => t == indexName);
         }
@@ -1571,7 +1707,7 @@ namespace COLID.SearchService.Repositories.Implementation
         {
             try
             {
-                var response = _elasticClient.Search<dynamic>(s => s
+                var response = GetOpenSearchClientForUser(_adminRole).Search<dynamic>(s => s
                   .Index(index)
                   .Size(0)
                   .Query(q => q
@@ -1636,7 +1772,7 @@ namespace COLID.SearchService.Repositories.Implementation
             catch (System.Exception ex)
             {
 
-                _logger.LogInformation(ex, "{Message}", ex.Message);
+                _logger.LogError(ex, "{Message}", ex.Message);
                 return new List<UserBucketDTO>();
 
             }
@@ -1646,7 +1782,7 @@ namespace COLID.SearchService.Repositories.Implementation
         {
             try
             {
-                var response = _elasticClient.Search<dynamic>(s => s
+                var response = GetOpenSearchClientForUser(_adminRole).Search<dynamic>(s => s
                        .Index(index)
                        .MatchAll()
                        .Size(0)
@@ -1655,7 +1791,7 @@ namespace COLID.SearchService.Repositories.Implementation
             }
             catch (System.Exception ex)
             {
-                _logger.LogInformation(ex, "{Message}", ex.Message);
+                _logger.LogError(ex, "{Message}", ex.Message);
                 return true;
             }
         }
@@ -1664,7 +1800,7 @@ namespace COLID.SearchService.Repositories.Implementation
         {
             try
             {
-                var response = _elasticClient.Search<dynamic>(s => s
+                var response = GetOpenSearchClientForUser(_adminRole).Search<dynamic>(s => s
                        .Index(index)
                        .Size(10000)
                        .Source(false)
@@ -1687,7 +1823,7 @@ namespace COLID.SearchService.Repositories.Implementation
             }
             catch (System.Exception ex)
             {
-                _logger.LogInformation(ex, "{Message}", ex.Message);
+                _logger.LogError(ex, "{Message}", ex.Message);
                 return null;
             }
         }
@@ -1696,7 +1832,7 @@ namespace COLID.SearchService.Repositories.Implementation
         {
             try
             {
-                var indexedDocument = _elasticClient.Index<JObject>(document, idx => idx.Index(index).Id(userID));
+                var indexedDocument = GetOpenSearchClientForUser(_adminRole).Index<JObject>(document, idx => idx.Index(index).Id(userID));
                 _logger.LogInformation("Added unique user={userID} document={document} to index={index}", index, document, userID);
                 return true;
             }
@@ -1847,17 +1983,18 @@ namespace COLID.SearchService.Repositories.Implementation
 
         public IndexStaus GetIndexingStatus()
         {
+            var elasticClient = GetOpenSearchClientForUser(_adminRole);
             var curIndexingStatus = new IndexStaus();
             try
             {
-                var SearchIndicesName = _elasticClient.GetIndicesPointingToAlias(Names.Parse(GetSearchAlias(SearchIndex.Published))).FirstOrDefault();
-                var UpdateIndicesName = _elasticClient.GetIndicesPointingToAlias(Names.Parse(GetUpdateAlias(UpdateIndex.Published))).FirstOrDefault();
+                var SearchIndicesName = elasticClient.GetIndicesPointingToAlias(Names.Parse(GetSearchAlias(SearchIndex.Published))).FirstOrDefault();
+                var UpdateIndicesName = elasticClient.GetIndicesPointingToAlias(Names.Parse(GetUpdateAlias(UpdateIndex.Published))).FirstOrDefault();
 
                 curIndexingStatus.InProgress = !(SearchIndicesName == UpdateIndicesName);
                 var curCountRequest = new CountRequest(Indices.Index(GetUpdateAlias(UpdateIndex.Published)));
-                curIndexingStatus.CurrentDocCount = _elasticClient.Count(curCountRequest).Count;
+                curIndexingStatus.CurrentDocCount = elasticClient.Count(curCountRequest).Count;
                 var totCountRequest = new CountRequest(Indices.Index(GetSearchAlias(SearchIndex.Published)));
-                curIndexingStatus.TotalDocCount = _elasticClient.Count(totCountRequest).Count;
+                curIndexingStatus.TotalDocCount = elasticClient.Count(totCountRequest).Count;
             }
             catch (System.Exception ex)
             {

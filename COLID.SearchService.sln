@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.32510.428
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32526.322
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "COLID.SearchService.WebApi", "COLID.SearchService.WebApi\COLID.SearchService.WebApi.csproj", "{F2CCEDC6-A542-4186-AA97-C7B152E36275}"
 EndProject
@@ -47,6 +47,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{2EF9E01D-1587-4973-8086-246BA2C74F98} = {0D6047A8-B427-4EA0-BB85-94BE14E2B0E6}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {7928B239-D524-4577-AF63-1BC5A8388F31}

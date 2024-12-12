@@ -21,7 +21,7 @@ namespace COLID.SearchService.Services.Implementation
     /// <summary>
     /// Services for handling of all index operations.
     /// </summary>
-    public class IndexService : IIndexService, IMessageQueueReceiver
+    public class IndexService : IIndexService//, IMessageQueueReceiver
     {
         private readonly IElasticSearchRepository _elasticSearchRepository;
         private readonly ColidMessageQueueOptions _mqOptions;
@@ -36,54 +36,18 @@ namespace COLID.SearchService.Services.Implementation
             _logger = logger;
             _configuration = configuration;
             _reindexingSwitch = _configuration.GetValue<bool>("ReindexSwitch");
-            _logger.LogInformation("ReindexSwitch is allowed {ReindexingSwitch}", _reindexingSwitch);
+            //_logger.LogInformation("ReindexSwitch is allowed {ReindexingSwitch}", _reindexingSwitch);
         }
 
-        public IDictionary<string, Action<string>> OnTopicReceivers => new Dictionary<string, Action<string>>() {
-            {_mqOptions.Topics["ReindexingSwitch"], ReindexingSwitch},
-        };
+        //public IDictionary<string, Action<string>> OnTopicReceivers => new Dictionary<string, Action<string>>() {
+        //    {_mqOptions.Topics["ReindexingSwitch"], ReindexingSwitch},
+        //};
 
-        public async void ReindexingSwitch(string pidUriString)
+        public void ReindexingSwitch()
         {
             if (_reindexingSwitch)
-            {
-            _logger.LogInformation($"Reindexing switch is true for non local env and thus we wait before switching index");
-            var document = (JObject)JsonConvert.DeserializeObject(pidUriString);
-            var lastPidUris = document["lastPidUris"];
-            bool continueCheck = true;
-            DateTime loopStart = DateTime.Now;
-            _logger.LogInformation("Checking if the piduris have been received in new index at {LoopStart} hours", loopStart);
-            int myCount = 0;
-            while (continueCheck && DateTime.Now.Subtract(loopStart).Hours < 8)
-            {
-                myCount++;
-                _logger.LogInformation("The loop is running for {MyCount} time", myCount);
-                lastPidUris.ToList().ForEach(pidUri =>
-                {
-                    try
-                    {
-                        var response = _elasticSearchRepository.GetDocument(HttpUtility.UrlEncode(pidUri.ToString()), UpdateIndex.Published);
-                        if (response != null && continueCheck)
-                        {
-                            _logger.LogInformation("Document present {PidUri} in new index", pidUri);
-
-                            continueCheck = false;
-                        }
-                    }
-                    catch (System.Exception ex)
-                    {
-                        if (ex is EntityNotFoundException)
-                        {
-                            _logger.LogWarning(ex, "Document not recieved yet in new index for {PidUri} by message queue", pidUri.ToString());
-                        }
-                    }
-                });
-
-                await Task.Delay(600000);
-
-            }
-            _logger.LogInformation("Loop finished. Switching Search Aliases at {Time} hours", DateTime.Now);
-            SwitchAndDeleteOldIndex();
+            {            
+                SwitchAndDeleteOldIndex();
             }
         }
 

@@ -1,4 +1,6 @@
-﻿using COLID.MessageQueue.Services;
+﻿using COLID.AWS;
+using COLID.MessageQueue.Configuration;
+using COLID.MessageQueue.Services;
 using COLID.SearchService.Services.Implementation;
 using COLID.SearchService.Services.Interface;
 using Microsoft.Extensions.Configuration;
@@ -28,10 +30,17 @@ namespace COLID.SearchService.Services
 
             services.AddTransient<IndexService>();
             services.AddTransient<IIndexService>(x => x.GetRequiredService<IndexService>());
-            services.AddTransient<IMessageQueueReceiver> (x => x.GetRequiredService<IndexService>());
+            //services.AddTransient<IMessageQueueReceiver> (x => x.GetRequiredService<IndexService>());
 
             services.AddTransient<IUserService, UserService>();
+            
+            //Start Background Service only if Message Queue is not Enabled
+            var messageQueueOptions = new ColidMessageQueueOptions();
+            configuration.GetSection("ColidMessageQueueOptions").Bind(messageQueueOptions);
+            if (!messageQueueOptions.Enabled)
+                services.AddHostedService<BulkProcessBackgroundService>();
 
+            services.AddAmazonWebServiceModule(configuration);
             return services;
         }
     }

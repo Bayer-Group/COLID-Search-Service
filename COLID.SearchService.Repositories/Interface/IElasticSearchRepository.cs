@@ -57,7 +57,7 @@ namespace COLID.SearchService.Repositories.Interface
         /// </summary>
         /// <param name="id">Unique identifier of document.</param>
         /// <param name="updateIndex">The index to which the document should be indexed</param>
-        object DeleteDocument(string id, UpdateIndex updateIndex);
+        Task DeleteDocument(string id, UpdateIndex updateIndex);
 
         /// <summary>
         /// Adds a new document with specific ID to the index.
@@ -67,7 +67,7 @@ namespace COLID.SearchService.Repositories.Interface
         /// <param name="updateIndex">The index to which the document should be indexed</param>
         /// <returns></returns>
         /// <remarks>Can be used to overwrite an existing document with the usage of an already existing ID.</remarks>
-        object IndexDocument(string id, JObject documentToIndex, UpdateIndex updateIndex);
+        Task IndexDocument(string id, JObject documentToIndex, UpdateIndex updateIndex);
 
         IList<string> Suggest(string searchText, SearchIndex searchIndex);
 
@@ -93,7 +93,7 @@ namespace COLID.SearchService.Repositories.Interface
         /// </summary>
         /// <param name="documents">Contents for each document</param>
         /// <param name="updateIndex">The index to which the documents should be indexed</param>
-        object IndexDocuments(IList<JObject> documents, UpdateIndex updateIndex);
+        Task IndexDocuments(IList<JObject> documents, UpdateIndex updateIndex);
 
         /// <summary>
         /// Executes a search on the current index with the given query with the DMP default search logic.
@@ -115,7 +115,7 @@ namespace COLID.SearchService.Repositories.Interface
 
         /// <summary>
         /// Provides actual metadata for all fields of a document in elasticsearch.
-        /// </summary>
+        /// </summary>        
         /// <returns>Metadata collection for all fields in elasticsearch.</returns>
         MetadataCollection GetMetadataCollection();
 

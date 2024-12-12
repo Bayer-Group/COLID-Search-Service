@@ -21,5 +21,11 @@ namespace COLID.SearchService.Services.Interface
         /// </summary>
         /// <returns></returns>
         IndexStaus GetIndexingStatus();
+
+        /// <summary>
+        /// Switch Index.
+        /// </summary>
+        /// <returns></returns>
+        void ReindexingSwitch();
     }
 }

@@ -2,8 +2,11 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Web;
+using COLID.AWS.Interface;
 using COLID.Common.Extensions;
+using COLID.Graph.Metadata.DataModels.Resources;
 using COLID.Graph.TripleStore.DataModels.Index;
 using COLID.Graph.TripleStore.DataModels.Resources;
 using COLID.MessageQueue.Configuration;
@@ -30,26 +33,42 @@ namespace COLID.SearchService.Services.Implementation
         private readonly IElasticSearchRepository _elasticSearchRepository;
         private readonly JsonSerializerSettings _serializerSettings;
         private readonly ILogger<DocumentService> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly IIndexService _indexService;
+
         // getting the service url ex: pid.bayer..
         private static readonly string _basePath = Path.GetFullPath("appsettings.json");
         private static readonly string _filePath = _basePath[..^16];
-        private static readonly IConfigurationRoot _configuration = new ConfigurationBuilder()
+        private static readonly IConfigurationRoot _configurationRoot = new ConfigurationBuilder()
                      .SetBasePath(_filePath)
                     .AddJsonFile("appsettings.json")
                     .Build();
-        public static readonly string _httpServiceUrl = _configuration.GetValue<string>("HttpServiceUrl");
+        public static readonly string _httpServiceUrl = _configurationRoot.GetValue<string>("HttpServiceUrl");
+
+        private readonly IAmazonSQSExtendedService _amazonSQSExtService;
+        private readonly string _indexingOpensearchDocInputQueueUrl;
+        private readonly string _indexingOpensearchDocInputS3;
+        private bool _reIndexRunning = false;
+        private readonly object _reIndexlock = new object();
 
         public DocumentService(IOptionsMonitor<ColidMessageQueueOptions> messageQueuingOptionsAccessor, IElasticSearchRepository elasticSearchRepository,
-           ILogger<DocumentService> logger)
+           ILogger<DocumentService> logger, IConfiguration configuration, IIndexService indexService, IAmazonSQSExtendedService amazonSQSExtService)
         {
             _mqOptions = messageQueuingOptionsAccessor.CurrentValue;
             _elasticSearchRepository = elasticSearchRepository;
             _serializerSettings = new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() };
             _logger = logger;
+            _configuration = configuration;
+            _indexService = indexService;
+            _amazonSQSExtService = amazonSQSExtService;
+            _indexingOpensearchDocInputQueueUrl = _configuration.GetConnectionString("IndexingOpensearchDocInputQueueUrl");
+            _indexingOpensearchDocInputS3 = _configuration.GetConnectionString("IndexingOpensearchDocInputS3");
+            _serializerSettings = new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() };
+
         }
 
         public IDictionary<string, Action<string>> OnTopicReceivers => new Dictionary<string, Action<string>>() {
-            {_mqOptions.Topics["IndexingResourceDocument"], IndexDocument},
+            {_mqOptions.Topics["IndexingResourceDocument"], async (message) => await IndexDocument(message)},
         };
 
         // TODO: Add update index to delete
@@ -57,17 +76,17 @@ namespace COLID.SearchService.Services.Implementation
         /// <see cref="IDocumentService.DeleteDocument(string)"/>
         /// </summary>
         /// <param name="rawDocumentId">Document with field <c>resoruceID</c>.</param>
-        public void DeleteDocument(Uri id, IndexDocumentDto document)
+        public async Task DeleteDocument(Uri id, IndexDocumentDto document)
         {
             var encodedId = HttpUtility.UrlEncode(id.ToString());
 
             if (string.IsNullOrWhiteSpace(encodedId))
             {
-                Console.WriteLine($"No ID in Resource Deletion Request found: {document}");
+                Console.WriteLine($"No ID in Resource Deletion Request found: {document}");  
                 return;
             }
 
-            _elasticSearchRepository.DeleteDocument(encodedId, GetIndexToUpdate(document));
+            await _elasticSearchRepository.DeleteDocument(encodedId, GetIndexToUpdate(document));
         }
 
         /// <summary>
@@ -262,13 +281,13 @@ namespace COLID.SearchService.Services.Implementation
         /// <summary>
         /// <see cref="IDocumentService.IndexDocument(string, JObject)"/>
         /// </summary>
-        public object IndexDocument(Uri id, IndexDocumentDto document)
+        public async Task IndexDocument(Uri id, IndexDocumentDto document)
         {
             Console.WriteLine("[Indexing] Indexing document with id: " + id);
             var encodedId = HttpUtility.UrlEncode(id.ToString());
 
             JObject jObjectDocument = JObject.FromObject(document.Document, JsonSerializer.Create(_serializerSettings));
-            return _elasticSearchRepository.IndexDocument(encodedId, jObjectDocument, GetIndexToUpdate(document));
+            await _elasticSearchRepository.IndexDocument(encodedId, jObjectDocument, GetIndexToUpdate(document));
         }
 
         private static UpdateIndex GetIndexToUpdate(IndexDocumentDto document)
@@ -283,17 +302,26 @@ namespace COLID.SearchService.Services.Implementation
         /// <see cref="IDocumentService.IndexDocument(string)"/>
         /// </summary>
         /// <param name="rawDocument"></param>
-        public void IndexDocument(string rawDocument)
+        public async Task IndexDocument(string rawDocument)
         {
-            var document = JsonConvert.DeserializeObject<IndexDocumentDto>(rawDocument);
-
-            if (document.Action == ResourceCrudAction.Deletion)
+            try
             {
-                DeleteDocument(document.DocumentId, document);
-                return;
-            }
+                var rawDocString = System.Text.Json.JsonSerializer.Deserialize<string>(rawDocument);
+                var document = JsonConvert.DeserializeObject<IndexDocumentDto>(rawDocString, _serializerSettings);
 
-            IndexDocument(document.DocumentId, document);
+                if (document.Action == ResourceCrudAction.Deletion)
+                {
+                    await DeleteDocument(document.DocumentId, document);
+                    return;
+                }
+
+                await IndexDocument(document.DocumentId, document);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError($"[Indexing] Something went wrong: " + (ex.InnerException == null ? ex.Message : ex.InnerException.Message));
+            }
+            
         }
 
         /// <summary>
@@ -331,5 +359,61 @@ namespace COLID.SearchService.Services.Implementation
 
             return _elasticSearchRepository.GetDocuments(documentIdentifiers, fieldsToReturn, includeDraft);
         }
+
+        /// <summary>
+        /// Fetch OpenSearch Document from SQS and start Indexing
+        /// </summary>        
+        public async void ReindexDocumentsFromQueue()
+        {
+            //Lock method so that multiple call from Background service does not invoke this method when its busy processing messages
+            lock (_reIndexlock)
+            {
+                if (_reIndexRunning)
+                {
+                    return;
+                }
+                else
+                {
+                    _reIndexRunning = true;
+                }
+            }
+
+            try
+            {
+                //Check for msgs in a loop           
+                int msgcount = 0;
+                bool msgProcessed = false;
+                do
+                {
+                    //Check msgs available in SQS                      
+                    var msgs = await _amazonSQSExtService.ReceiveMessageAsync(_indexingOpensearchDocInputQueueUrl, _indexingOpensearchDocInputS3, 2, 10);
+                    msgcount = msgs.Count;
+
+                    //Iterate on each msg which containing a pidUri
+                    foreach (var msg in msgs)
+                    {
+                        msgProcessed = true;
+                        try
+                        {
+                            //Delete the msg from SQS Queue before it times out
+                            await _amazonSQSExtService.DeleteMessageAsync(_indexingOpensearchDocInputQueueUrl, _indexingOpensearchDocInputS3, msg.ReceiptHandle);
+                            //Then process the msg
+                            await IndexDocument(msg.Body);
+                        }
+                        catch (System.Exception ex)
+                        {
+                            _logger.LogError("[Reindexing] Something went wrong : " + (ex.InnerException == null ? ex.Message : ex.InnerException.Message));
+                        }
+                    }
+
+                } while (msgcount > 0);                
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError($"[Reindexing] Something went wrong: " + (ex.InnerException == null ? ex.Message : ex.InnerException.Message));
+            }
+
+            _reIndexRunning = false;
+        }        
     }
 }
